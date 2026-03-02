@@ -1,9 +1,9 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
-  Icon,
-  Label,
-  NativeTabs,
-  VectorIcon,
+    Icon,
+    Label,
+    NativeTabs,
+    VectorIcon,
 } from "expo-router/unstable-native-tabs";
 import { Platform } from "react-native";
 
@@ -48,6 +48,18 @@ export default function TabLayout() {
           android: (
             <Icon
               src={<VectorIcon family={MaterialIcons} name="help-outline" />}
+              selectedColor="blue"
+            />
+          ),
+        })}
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="(stellar)">
+        <Label>Stellar</Label>
+        {Platform.select({
+          ios: <Icon sf={{ default: "star", selected: "star.fill" }} />,
+          android: (
+            <Icon
+              src={<VectorIcon family={MaterialIcons} name="account-balance-wallet" />}
               selectedColor="blue"
             />
           ),
