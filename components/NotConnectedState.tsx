@@ -34,7 +34,7 @@ export function NotConnectedState({
     if (!provider) return;
 
     if (isLogin) {
-      provider.login();
+      provider.login().catch((error) => console.error("Sign-in failed:", error));
     } else router.push("/(tabs)/(home)");
 
   }, [isLogin, provider, router]);

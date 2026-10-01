@@ -310,7 +310,11 @@ export default function InviteDeepLinkPage() {
 
             <VStack className="w-full gap-3">
               {!isConnected && (
-                <Button size="lg" variant="outline" onPress={() => provider?.login()}>
+                <Button size="lg" variant="outline" onPress={() =>
+                    provider
+                      ?.login()
+                      .catch((error) => console.error("Sign-in failed:", error))
+                  }>
                   <ButtonText>Sign in to RelayID</ButtonText>
                 </Button>
               )}

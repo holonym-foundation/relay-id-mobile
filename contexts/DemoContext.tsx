@@ -1,4 +1,6 @@
-import { supportedChains } from "@/config/chains";
+import { appChain } from "@/config/chains";
+import { WAAP_ENVIRONMENT } from "@/lib/constants";
+import { marshalTypedData } from "@/lib/utils/serialize";
 import {
   createExpoNativeBrowser,
   initWaapNative,
@@ -8,12 +10,20 @@ import * as WebBrowser from 'expo-web-browser';
 import {
   createContext,
   ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
 } from "react";
-import { Chain, createPublicClient, http, PublicClient } from "viem";
+import {
+  Chain,
+  createPublicClient,
+  http,
+  numberToHex,
+  PublicClient,
+  TypedDataDefinition,
+} from "viem";
 
 interface DemoContextType {
   isDemoMode: boolean;
@@ -23,10 +33,26 @@ interface DemoContextType {
   account: `0x${string}` | null;
   chainId: number | null;
   setChainId: (chainId: number) => void;
-  publicClient: PublicClient | null;
+  publicClient: PublicClient;
+  signTypedData: (typedData: TypedDataDefinition) => Promise<`0x${string}`>;
 }
 
 const DemoContext = createContext<DemoContextType | undefined>(undefined);
+
+/**
+ * The SDK rejects with plain objects (`{ error }` or `{ code, message }`), which
+ * `instanceof Error` checks at the call sites would reduce to a generic message.
+ */
+export function toError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  const { message, error: detail } = (error ?? {}) as {
+    message?: unknown;
+    error?: unknown;
+  };
+  if (typeof message === "string") return new Error(message);
+  if (typeof detail === "string") return new Error(detail);
+  return new Error(String(error));
+}
 
 export function DemoProvider({ children }: { children: ReactNode }) {
   const [isDemoMode, setIsDemoMode] = useState(false);
@@ -34,32 +60,30 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const [chainId, setChainId] = useState<number | null>(null);
   const [account, setAccount] = useState<`0x${string}` | null>(null);
 
-  // Create public client that updates when chainId changes
-  const publicClient = useMemo(() => {
-    if (!chainId) return null;
-
-    const chain = supportedChains.find((c) => c.id === chainId);
-    if (!chain) {
-      console.warn(`Chain with ID ${chainId} not found in supported chains`);
-      return null;
-    }
-
-    return createPublicClient({
-      chain: chain as Chain,
-      transport: http(),
-    });
-  }, [chainId]);
+  // Leadership lives on the app chain, so read it there rather than on
+  // whichever chain the wallet reports.
+  const publicClient = useMemo(
+    () =>
+      createPublicClient({
+        chain: appChain as Chain,
+        transport: http(),
+      }) as PublicClient,
+    []
+  );
 
   // Initialize SDK
   useEffect(() => {
     try {
       const provider = initWaapNative({
+        environment: WAAP_ENVIRONMENT,
         customConfig: {
           styles: {
             darkMode: true,
           },
           showSecured: false,
-          authenticationMethods: ["email", "phone", "social", "wallet"],
+          // Email's magic link cannot return to the app and phone sign-in is
+          // disabled, so neither can complete on mobile.
+          authenticationMethods: ["social", "wallet"],
           allowedSocials: ["google", "twitter", "discord", "github", "bluesky"],
         },
         project: {
@@ -77,65 +101,92 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-
-
   const toggleDemoMode = () => {
     setIsDemoMode((prev) => !prev);
   };
 
-  const autoConnect = async (provider: NativeEthereumProvider) => {
-    try {
-      const accounts = (await provider.request({
-        method: "eth_requestAccounts",
-      })) as string[];
+  useEffect(() => {
+    if (!provider) return;
 
-      console.log("accounts", accounts);
-      if (accounts && accounts.length > 0) {
-        setAccount(accounts[0] as `0x${string}`);
-
-        // TODO: This will all be provided by the events, just to test
-        const chainId = (await provider.request({
+    const syncChainId = async () => {
+      try {
+        const hex = (await provider.request({
           method: "eth_chainId",
           params: [],
         })) as string;
-
-        console.log("chainId", chainId);
-        setChainId(parseInt(chainId, 16));
+        setChainId(parseInt(hex, 16));
+      } catch (error) {
+        console.error("Failed to read chain id:", error);
       }
-    } catch {
-      console.log("Auto-connect failed (user not logged in)");
-    }
-  };
+    };
 
-  useEffect(() => {
-    if (!provider) return;
-    // Listen to events
-    provider.on("accountsChanged", (accounts: string[]) => {
-      console.log("Accounts changed:", accounts);
-      setAccount((accounts[0] as `0x${string}`) || null);
-    });
-
-    provider.on("chainChanged", (newChainId: string) => {
-      console.log("Chain changed to:", newChainId);
+    const onAccountsChanged = (accounts: string[]) => {
+      const next = (accounts[0] as `0x${string}` | undefined) || null;
+      setAccount(next);
+    };
+    const onChainChanged = (newChainId: string) => {
       setChainId(parseInt(newChainId, 16));
-    });
-
-    provider.on("connect", (connectInfo: { chainId: string }) => {
-      console.log("Connected to chain:", connectInfo.chainId);
-      setChainId(parseInt(connectInfo.chainId, 16));
-    });
-
-    provider.on("disconnect", (_error: any) => {
-      console.log("Disconnected");
+    };
+    // The SDK's connect event can announce 0x1 whatever the wallet's chain.
+    const onConnect = () => {
+      syncChainId();
+    };
+    const onDisconnect = () => {
       setAccount(null);
-    });
+      setChainId(null);
+    };
 
+    provider.on("accountsChanged", onAccountsChanged);
+    provider.on("chainChanged", onChainChanged);
+    provider.on("connect", onConnect);
+    provider.on("disconnect", onDisconnect);
 
-    provider.login();
+    // Restore an existing session without prompting. `eth_accounts` answers
+    // `[]` when there is none; signing in is left to the user's tap.
+    (async () => {
+      try {
+        const accounts = (await provider.request({
+          method: "eth_accounts",
+        })) as string[];
+        const restored = accounts?.[0] as `0x${string}` | undefined;
+        if (restored) {
+          setAccount(restored);
+          await syncChainId();
+        }
+      } catch (error) {
+        console.log("No session to restore:", error);
+      }
+    })();
 
-    // Try auto-connect
-    autoConnect(provider);
+    return () => {
+      provider.removeListener("accountsChanged", onAccountsChanged);
+      provider.removeListener("chainChanged", onChainChanged);
+      provider.removeListener("connect", onConnect);
+      provider.removeListener("disconnect", onDisconnect);
+    };
   }, [provider]);
+
+  const signTypedData = useCallback(
+    async (typedData: TypedDataDefinition) => {
+      if (!provider || !account) throw new Error("Please connect your wallet first");
+      try {
+        if (chainId !== appChain!.id) {
+          await provider.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: numberToHex(appChain!.id) }],
+          });
+        }
+        return (await provider.request({
+          method: "eth_signTypedData_v4",
+          // uint256 fields are BigInt, which JSON.stringify cannot encode.
+          params: [account, JSON.stringify(marshalTypedData(typedData))],
+        })) as `0x${string}`;
+      } catch (error) {
+        throw toError(error);
+      }
+    },
+    [provider, account, chainId]
+  );
 
   return (
     <DemoContext.Provider
@@ -148,6 +199,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         chainId,
         setChainId,
         publicClient,
+        signTypedData,
       }}
     >
       {children}

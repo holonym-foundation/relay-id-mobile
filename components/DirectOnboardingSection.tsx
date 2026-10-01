@@ -10,6 +10,8 @@ import { Text } from "@/components/ui/text";
 import { VStack } from "@/components/ui/vstack";
 import { useDemoMode } from "@/contexts/DemoContext";
 import { useToast } from "@/hooks/useToast";
+import { CHAIN_ID } from "@/lib/constants";
+import { marshalTypedData } from "@/lib/utils/serialize";
 import { isAddress } from "viem";
 
 interface DirectOnboardingSectionProps {
@@ -19,7 +21,7 @@ interface DirectOnboardingSectionProps {
 export function DirectOnboardingSection({
   initialAddress,
 }: DirectOnboardingSectionProps) {
-  const { account, isConnected, provider } = useDemoMode();
+  const { account, isConnected, signTypedData } = useDemoMode();
   const toast = useToast();
   const [relayIdInput, setRelayIdInput] = useState(initialAddress || "");
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -64,7 +66,7 @@ export function DirectOnboardingSection({
       return;
     }
 
-    if (!isConnected || !account || !provider) {
+    if (!isConnected || !account) {
       toast.show({
         title: "Error",
         description: "Please connect your wallet first",
@@ -85,20 +87,14 @@ export function DirectOnboardingSection({
 
       const nonce = generateNonce();
 
-      // Create typed data
-      const chainId = Number(process.env.EXPO_PUBLIC_CHAIN_ID || 11155111); // Default to Sepolia
-
       const typedData = createDirectOnboardTypedData({
         inviterAddress: account,
         recipient: recipient as `0x${string}`,
         nonce,
-        chainId,
+        chainId: CHAIN_ID,
       });
 
-      const signature = await provider.request({
-        method: "'eth_signTypedData_v4'",
-        params: [account, JSON.stringify(typedData)],
-      }) as string;
+      const signature = await signTypedData(typedData);
 
       // Get device info
       const deviceInfo = getDeviceInfo();
@@ -106,7 +102,7 @@ export function DirectOnboardingSection({
       // Call onboardDirect API
       const result = await onboardDirect({
         recipient,
-        typedData: typedData as any,
+        typedData: marshalTypedData(typedData),
         signature,
         deviceInfo,
       });

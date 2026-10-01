@@ -16,13 +16,14 @@ import { useToast } from "@/hooks/useToast";
 import { DEMO_DATA } from "@/lib/demo-data";
 import { getDeviceInfo } from "@/lib/device-info";
 import { onboardViaInvite } from "@/lib/relayId/api";
+import { unmarshalTypedData } from "@/lib/utils/serialize";
 
 interface OnboardingFlowProps {
   verificationResult: VerifyInviteResult;
 }
 
 export function OnboardingFlow({ verificationResult }: OnboardingFlowProps) {
-  const { isDemoMode, account, provider } = useDemoMode();
+  const { isDemoMode, account, signTypedData } = useDemoMode();
   const toast = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -36,8 +37,7 @@ export function OnboardingFlow({ verificationResult }: OnboardingFlowProps) {
     if (
       !displayAddress ||
       !verificationResult?.success ||
-      !verificationResult.typedData ||
-      !provider
+      !verificationResult.typedData
     ) {
       toast.show({
         title: "Error",
@@ -85,10 +85,9 @@ export function OnboardingFlow({ verificationResult }: OnboardingFlowProps) {
     try {
       setOnboardingStage(1); // Awaiting confirmation
 
-      const signature = await provider.request({
-        method: "'eth_signTypedData_v4'",
-        params: [account, JSON.stringify(verificationResult.typedData)],
-      }) as string;
+      const signature = await signTypedData(
+        unmarshalTypedData(verificationResult.typedData)
+      );
 
       // Get device info
       const deviceInfo = getDeviceInfo();
