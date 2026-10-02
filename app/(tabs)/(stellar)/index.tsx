@@ -12,9 +12,10 @@ import { Text } from "@/components/ui/text";
 import { VStack } from "@/components/ui/vstack";
 
 import { AppHeader } from "@/components/AppHeader";
-import { useDemoMode } from "@/contexts/DemoContext";
+import { toError, useDemoMode } from "@/contexts/DemoContext";
 import { useToast } from "@/hooks/useToast";
 import { STELLAR_API_URL } from "@/lib/constants";
+import { stringToHex } from "viem";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,12 +37,14 @@ async function signMessageWithProvider(
   message: string,
 ): Promise<string> {
   // personal_sign expects: params[0] = hex-encoded message, params[1] = address
-  const msgHex = "0x" + Buffer.from(message).toString("hex");
-  const sig = (await provider.request({
-    method: "personal_sign",
-    params: [msgHex, account],
-  })) as string;
-  return sig;
+  try {
+    return (await provider.request({
+      method: "personal_sign",
+      params: [stringToHex(message), account],
+    })) as string;
+  } catch (error) {
+    throw toError(error);
+  }
 }
 
 // ---------------------------------------------------------------------------
