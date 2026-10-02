@@ -150,7 +150,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           // Email's magic link cannot return to the app and phone sign-in is
           // disabled, so neither can complete on mobile.
           authenticationMethods: ["social", "wallet"],
-          allowedSocials: ["google", "twitter", "discord", "github", "bluesky"],
+          allowedSocials: ["google", "twitter", "discord", "github", "bluesky", "telegram"],
         },
         project: {
           appId: "org.refunite.relayid.app",
