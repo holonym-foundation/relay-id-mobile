@@ -35,6 +35,11 @@ interface DemoContextType {
   setChainId: (chainId: number) => void;
   publicClient: PublicClient;
   signTypedData: (typedData: TypedDataDefinition) => Promise<`0x${string}`>;
+  signIn: () => Promise<void>;
+  /** Stops waiting for a login the user abandoned in the browser. */
+  cancelSignIn: () => void;
+  /** From the sign-in tap until the account and its chain are both known. */
+  isSigningIn: boolean;
 }
 
 const DemoContext = createContext<DemoContextType | undefined>(undefined);
@@ -166,6 +171,38 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     };
   }, [provider]);
 
+  const [loginPending, setLoginPending] = useState(false);
+  // The SDK settles `login()` with null as soon as the login browser is
+  // dismissed, and Android users always dismiss it by hand, so null does not
+  // mean cancelled: the wallet may still confirm, and the account then arrives
+  // through `accountsChanged`. Keep waiting for it, for a while.
+  const [awaitingWallet, setAwaitingWallet] = useState(false);
+
+  useEffect(() => {
+    if (!awaitingWallet) return;
+    if (account) {
+      setAwaitingWallet(false);
+      return;
+    }
+    const timer = setTimeout(() => setAwaitingWallet(false), 45_000);
+    return () => clearTimeout(timer);
+  }, [awaitingWallet, account]);
+
+  const signIn = useCallback(async () => {
+    if (!provider || loginPending) return;
+    setLoginPending(true);
+    try {
+      const method = await provider.login();
+      if (method === null) setAwaitingWallet(true);
+    } catch (error) {
+      console.error("Sign-in failed:", error);
+    } finally {
+      setLoginPending(false);
+    }
+  }, [provider, loginPending]);
+
+  const cancelSignIn = useCallback(() => setAwaitingWallet(false), []);
+
   const signTypedData = useCallback(
     async (typedData: TypedDataDefinition) => {
       if (!provider || !account) throw new Error("Please connect your wallet first");
@@ -200,6 +237,11 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         setChainId,
         publicClient,
         signTypedData,
+        signIn,
+        cancelSignIn,
+        // The chain arrives just after the account; without this the sign-in
+        // button would flash back in between.
+        isSigningIn: loginPending || awaitingWallet || (!!account && !chainId),
       }}
     >
       {children}

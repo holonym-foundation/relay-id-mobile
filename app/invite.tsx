@@ -27,7 +27,7 @@ interface VerifyInviteResult {
 
 export default function InviteDeepLinkPage() {
   const { code } = useLocalSearchParams<{ code?: string }>();
-  const { isDemoMode, isConnected, provider } = useDemoMode();
+  const { isDemoMode, isConnected, signIn, isSigningIn } = useDemoMode();
   const router = useRouter();
   const [verificationResult, setVerificationResult] =
     useState<VerifyInviteResult | null>(null);
@@ -310,12 +310,16 @@ export default function InviteDeepLinkPage() {
 
             <VStack className="w-full gap-3">
               {!isConnected && (
-                <Button size="lg" variant="outline" onPress={() =>
-                    provider
-                      ?.login()
-                      .catch((error) => console.error("Sign-in failed:", error))
-                  }>
-                  <ButtonText>Sign in to RelayID</ButtonText>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  isDisabled={isSigningIn}
+                  onPress={() => void signIn()}
+                >
+                  {isSigningIn && <Spinner size="small" />}
+                  <ButtonText>
+                    {isSigningIn ? "Finishing sign-in…" : "Sign in to RelayID"}
+                  </ButtonText>
                 </Button>
               )}
               <Button size="lg" variant="outline" onPress={handleGoToApp}>
