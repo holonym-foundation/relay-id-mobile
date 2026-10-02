@@ -32,7 +32,7 @@ const emptyState = (owner: string | null): WalletState => ({
   transaction: null, error: null, busy: null,
 });
 
-export const STELLAR_PROOF_MESSAGE = 'RelayID: I control this native Stellar wallet.';
+export const STELLAR_DEMO_MESSAGE = 'Hello Stellar!';
 
 function useStellarWalletState() {
   const { account, provider } = useDemoMode();
@@ -134,7 +134,7 @@ function useStellarWalletState() {
   const signMessage = () => run('message', async (_signal, update, isCurrent) => {
     if (!address || !isCurrent()) return;
     const stellar = getWaaPStellarProvider({ network });
-    const result = await stellar.signMessage(STELLAR_PROOF_MESSAGE, {
+    const result = await stellar.signMessage(STELLAR_DEMO_MESSAGE, {
       address, networkPassphrase: networkPassphrase(network),
     });
     update({ signature: result.signedMessage });

@@ -12,7 +12,7 @@ import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { toError, useDemoMode } from '@/contexts/DemoContext';
-import { STELLAR_PROOF_MESSAGE, useNativeStellarWallet } from '@/hooks/useNativeStellarWallet';
+import { STELLAR_DEMO_MESSAGE, useNativeStellarWallet } from '@/hooks/useNativeStellarWallet';
 import { useToast } from '@/hooks/useToast';
 import { transactionUrl } from '@/lib/stellar-native';
 
@@ -123,26 +123,6 @@ export default function NativeStellarWalletScreen() {
                 )}
               </VStack>
 
-              <VStack className="gap-3">
-                <Heading className="text-lg font-semibold text-gray-900">Prove wallet ownership</Heading>
-                <Text className="text-sm text-gray-600">Approve this message in WaaP to demonstrate signing with your Stellar account. This does not move funds.</Text>
-                <Box className="bg-gray-50 rounded-xl border border-gray-200 p-4">
-                  <Text className="text-sm text-gray-700">{STELLAR_PROOF_MESSAGE}</Text>
-                </Box>
-                <Button variant="outline" isDisabled={busy} onPress={() => void wallet.signMessage()}>
-                  <ButtonText>{wallet.busy === 'message' ? 'Waiting for approval…' : 'Sign message'}</ButtonText>
-                </Button>
-                {wallet.signature && (
-                  <VStack className="bg-green-50 rounded-xl border border-green-200 p-4 gap-2">
-                    <Text className="text-sm font-semibold text-green-800">Message signed</Text>
-                    <Text selectable numberOfLines={3} className="text-xs font-mono text-green-800">{wallet.signature}</Text>
-                    <Button size="sm" variant="link" onPress={() => void copy(wallet.signature!, 'Signature')}>
-                      <ButtonText>Copy signature</ButtonText>
-                    </Button>
-                  </VStack>
-                )}
-              </VStack>
-
               {testnet && (
                 <VStack className="gap-3">
                   <Heading className="text-lg font-semibold text-gray-900">Try a Stellar payment</Heading>
@@ -172,6 +152,26 @@ export default function NativeStellarWalletScreen() {
                   )}
                 </VStack>
               )}
+
+              <VStack className="gap-3">
+                <Heading className="text-lg font-semibold text-gray-900">Try signing a message</Heading>
+                <Text className="text-sm text-gray-600">Sign a greeting with your Stellar wallet. This does not move funds or cost a network fee.</Text>
+                <Box className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+                  <Text className="text-sm text-gray-700">{STELLAR_DEMO_MESSAGE}</Text>
+                </Box>
+                <Button variant="outline" isDisabled={busy} onPress={() => void wallet.signMessage()}>
+                  <ButtonText>{wallet.busy === 'message' ? 'Waiting for approval…' : 'Sign message'}</ButtonText>
+                </Button>
+                {wallet.signature && (
+                  <VStack className="bg-green-50 rounded-xl border border-green-200 p-4 gap-2">
+                    <Text className="text-sm font-semibold text-green-800">Message signed</Text>
+                    <Text selectable numberOfLines={3} className="text-xs font-mono text-green-800">{wallet.signature}</Text>
+                    <Button size="sm" variant="link" onPress={() => void copy(wallet.signature!, 'Signature')}>
+                      <ButtonText>Copy signature</ButtonText>
+                    </Button>
+                  </VStack>
+                )}
+              </VStack>
             </>
           )}
         </VStack>

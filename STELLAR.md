@@ -117,10 +117,10 @@ the user to retry indefinitely.
 
 - Native address with copy, XLM balance and manual refresh. Horizon 404 is shown as an account awaiting first funding, not a zero balance.
 - **Get test XLM:** Friendbot creates an unfunded account on testnet. Never available on mainnet.
-- **Sign message:** asks WaaP to sign a fixed ownership-demo message using Stellar message signing. This is a demonstration, not a reusable backend authentication credential.
+- **Sign message:** asks WaaP to sign `Hello Stellar!` using Stellar message signing. This is a demonstration, not a reusable backend authentication credential.
 - **Send test payment:** builds a one-stroop (`0.0000001` XLM) self-payment, with a fresh sequence, a 100-stroop fee and a three-minute validity window. WaaP signs the transaction envelope; the app checks that the body is unchanged and submits it to testnet Horizon.
 - Submission and confirmation are separate states. An uncertain submission retains its transaction hash, exposes **Check status**, and prevents another send while pending. The explorer link uses the selected network.
-- Logout/account changes clear the tab's data and abort network reads. Late signatures after logout or an action timeout are never broadcast. The ownership probe has a 30-second deadline; other actions have a two-minute deadline; individual HTTP reads have a 15-second deadline including the response body.
+- Logout/account changes clear the tab's data and abort network reads. Late signatures after logout or an action timeout are never broadcast. The session probe has a 30-second deadline; other actions have a two-minute deadline; individual HTTP reads have a 15-second deadline including the response body.
 
 `index.js` installs the Buffer polyfill before Expo Router loads screens. Raw XDR bytes are rewrapped with `Buffer.from` before base64 encoding because Hermes can return a plain `Uint8Array` from a Buffer subarray.
 
@@ -141,7 +141,7 @@ Device smoke test:
 
 1. Sign in normally and open **Stellar Native**; confirm the Testnet badge and native address.
 2. Get test XLM if the account is new, then refresh the balance.
-3. Sign the ownership message and inspect the returned signature.
+3. Sign `Hello Stellar!` and inspect the returned signature.
 4. Send the test payment; review the source, destination, amount and network in WaaP. Check confirmation and open the explorer link.
 5. Sign out and sign in with another account; confirm no previous address, signature or transaction remains.
 
