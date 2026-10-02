@@ -22,6 +22,7 @@ import { QRCodeModal } from "@/components/QRCodeModal";
 import { UserStatusGuard } from "@/components/UserStatusGuard";
 import en from "@/content/en";
 import { useLogout } from "@/hooks/useLogout";
+import { useNativeStellarWallet } from "@/hooks/useNativeStellarWallet";
 import { useToast } from "@/hooks/useToast";
 import { useUserStatus } from "@/hooks/useUserStatus";
 import { shareViaWhatsApp } from "@/lib/utils/whatsapp-share";
@@ -35,6 +36,7 @@ export default function Index() {
   const [showShareModal, setShowShareModal] = React.useState(false);
   const [showQRCode, setShowQRCode] = React.useState(false);
   const { handleLogout } = useLogout();
+  const stellarWallet = useNativeStellarWallet();
 
   const {
     displayAddress,
@@ -43,6 +45,16 @@ export default function Index() {
     displayIsConnected,
     isDemoMode,
   } = useUserStatus();
+
+  const handleCopyStellarAddress = async () => {
+    if (!stellarWallet.address) return;
+    try {
+      await Clipboard.setStringAsync(stellarWallet.address);
+      toast.show({ title: "Copied!", description: "Stellar address copied to clipboard", action: "success" });
+    } catch {
+      toast.show({ title: "Unable to copy Stellar address", action: "error" });
+    }
+  };
 
   const handleCopyRelayID = async () => {
     if (displayAddress) {
@@ -197,23 +209,31 @@ export default function Index() {
                     </HStack>
                   </HStack>
 
-                  {/* RelayID Display */}
+                  {/* Native Stellar identity; onboarding shares below still use the RelayID account. */}
                   <Box className="py-3 px-4 bg-gray-50 rounded-lg border border-gray-200">
                     <VStack className="gap-2">
                       <Text className="text-sm font-medium text-gray-700">
-                        Your RelayID
+                        Your Stellar address
                       </Text>
                       <HStack className="items-center justify-between">
                         <Text className="text-sm font-mono text-gray-800 flex-1 mr-3">
-                          {displayAddress || "Not available"}
+                          {stellarWallet.address || (stellarWallet.busy ? "Loading Stellar address…" : "Stellar address not available")}
                         </Text>
                         <Pressable
-                          onPress={handleCopyRelayID}
+                          onPress={handleCopyStellarAddress}
+                          disabled={!stellarWallet.address}
+                          accessibilityLabel="Copy Stellar address"
+                          accessibilityState={{ disabled: !stellarWallet.address }}
                           className="p-2 rounded-lg bg-white border border-gray-300 active:bg-gray-100"
                         >
                           <Feather name="copy" size={16} color="#6b7280" />
                         </Pressable>
                       </HStack>
+                      {!stellarWallet.address && !stellarWallet.busy && (
+                        <Pressable onPress={() => router.push("/(tabs)/(stellar-native)")}>
+                          <Text className="text-sm text-blue-600">Connect Stellar wallet</Text>
+                        </Pressable>
+                      )}
                     </VStack>
                   </Box>
                 </VStack>
