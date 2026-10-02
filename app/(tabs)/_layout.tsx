@@ -53,18 +53,7 @@ export default function TabLayout() {
           ),
         })}
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="(stellar)">
-        <Label>Stellar</Label>
-        {Platform.select({
-          ios: <Icon sf={{ default: "star", selected: "star.fill" }} />,
-          android: (
-            <Icon
-              src={<VectorIcon family={MaterialIcons} name="account-balance-wallet" />}
-              selectedColor="blue"
-            />
-          ),
-        })}
-      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="(stellar)" hidden />
       <NativeTabs.Trigger name="(stellar-native)">
         <Label>Stellar Native</Label>
         {Platform.select({
