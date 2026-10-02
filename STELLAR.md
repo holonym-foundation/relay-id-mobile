@@ -86,26 +86,28 @@ EXPO_PUBLIC_STELLAR_NATIVE_NETWORK=TESTNET
 
 This network is independent of `EXPO_PUBLIC_CHAIN_ID` (Ethereum) and `EXPO_PUBLIC_WAAP_ENVIRONMENT` (wallet deployment). The pinned WaaP SDK already exports the native Stellar provider. The wallet deployment selected by the app must also support Stellar requests.
 
-### Selecting a Stellar-enabled WaaP service
+### Selecting WaaP staging
 
-The native SDK and the wallet web service must both support `stellar_connect`.
-During the October 2, 2026 simulator test, the default production service returned
-`Unknown method: stellar_connect`. Selecting Stellar TESTNET does not switch the
-WaaP deployment. Use a verified Stellar-enabled service before testing this tab.
+Native Stellar support is currently available on **WaaP staging only**. The
+production wallet returns `Unknown method: stellar_connect`. Selecting Stellar
+TESTNET alone does not switch the WaaP deployment.
 
-For a preview or local wallet, set its origin in `.env.local` and restart Metro:
+Set these values in `.env.local`, then restart Metro and reload the app:
 
 ```env
-# Replace with the verified wallet origin, without a path.
-EXPO_PUBLIC_WAAP_WALLET_ORIGIN=https://your-wallet-preview.example
+EXPO_PUBLIC_WAAP_ENVIRONMENT=staging
 EXPO_PUBLIC_STELLAR_NATIVE_NETWORK=TESTNET
 ```
 
-The override is shared by all WaaP tabs and sign-in. HTTPS is required except on
-loopback hosts. A local wallet can use `http://127.0.0.1:3000` on the iOS simulator
-if that wallet server is running. Staging can instead be selected with
-`EXPO_PUBLIC_WAAP_ENVIRONMENT=staging`, but its availability and Stellar support
-must be verified; installing a staging SDK alone does not select it.
+This switches the shared WaaP wallet and sign-in for all tabs to staging. You may
+need to sign in again because staging and production use separate web origins.
+Remove `EXPO_PUBLIC_WAAP_WALLET_ORIGIN` if previously set: that override takes
+precedence over the named environment.
+
+An optional preview/local wallet can be selected with
+`EXPO_PUBLIC_WAAP_WALLET_ORIGIN`. Use an origin without a path; HTTPS is required
+except on loopback hosts. The iOS simulator can reach a running local wallet at
+`http://127.0.0.1:3000`.
 
 The initial session probe stays silent. **Connect Stellar wallet** explicitly
 requests the address and surfaces unsupported-service errors rather than asking
