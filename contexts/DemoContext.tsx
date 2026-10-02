@@ -14,6 +14,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -36,7 +37,7 @@ interface DemoContextType {
   publicClient: PublicClient;
   signTypedData: (typedData: TypedDataDefinition) => Promise<`0x${string}`>;
   signIn: () => Promise<void>;
-  /** Stops waiting for a login the user abandoned in the browser. */
+  /** Cancels the current attempt and resets the SDK so login can be retried. */
   cancelSignIn: () => void;
   /** From the sign-in tap until the account and its chain are both known. */
   isSigningIn: boolean;
@@ -64,6 +65,65 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const [provider, setProvider] = useState<NativeEthereumProvider | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const [account, setAccount] = useState<`0x${string}` | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const loginPending = useRef(false);
+  const sessionGeneration = useRef(0);
+  const acceptWalletEvents = useRef(true);
+  const loginTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionReset = useRef<Promise<void> | null>(null);
+
+  const finishSignIn = useCallback(() => {
+    if (loginTimer.current !== null) clearTimeout(loginTimer.current);
+    loginTimer.current = null;
+    loginPending.current = false;
+    setIsSigningIn(false);
+  }, []);
+
+  const cancelSignIn = useCallback(() => {
+    sessionGeneration.current += 1;
+    acceptWalletEvents.current = false;
+    finishSignIn();
+    setAccount(null);
+    setChainId(null);
+    // Native logout settles the SDK's in-flight login and closes its browser.
+    // A retry must wait for logout so it cannot erase the new session.
+    if (provider && !sessionReset.current) {
+      sessionReset.current = provider.logout().catch((error) => {
+        console.error("Failed to reset sign-in:", error);
+      }).finally(() => {
+        sessionReset.current = null;
+      });
+    }
+  }, [provider, finishSignIn]);
+
+  const syncChainId = useCallback(async () => {
+    if (!provider || !acceptWalletEvents.current) return;
+    const generation = sessionGeneration.current;
+    try {
+      const hex = (await provider.request({
+        method: "eth_chainId",
+        params: [],
+      })) as string;
+      const nextChainId = parseInt(hex, 16);
+      if (!Number.isSafeInteger(nextChainId) || nextChainId <= 0) {
+        throw new Error("Wallet returned an invalid chain id");
+      }
+      if (generation === sessionGeneration.current && acceptWalletEvents.current) {
+        setChainId(nextChainId);
+      }
+    } catch (error) {
+      console.error("Failed to read chain id:", error);
+    }
+  }, [provider]);
+
+  useEffect(() => {
+    if (account && chainId) finishSignIn();
+  }, [account, chainId, finishSignIn]);
+
+  useEffect(() => () => {
+    sessionGeneration.current += 1;
+    if (loginTimer.current !== null) clearTimeout(loginTimer.current);
+  }, []);
 
   // Leadership lives on the app chain, so read it there rather than on
   // whichever chain the wallet reports.
@@ -113,23 +173,13 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!provider) return;
 
-    const syncChainId = async () => {
-      try {
-        const hex = (await provider.request({
-          method: "eth_chainId",
-          params: [],
-        })) as string;
-        setChainId(parseInt(hex, 16));
-      } catch (error) {
-        console.error("Failed to read chain id:", error);
-      }
-    };
-
     const onAccountsChanged = (accounts: string[]) => {
+      if (!acceptWalletEvents.current) return;
       const next = (accounts[0] as `0x${string}` | undefined) || null;
       setAccount(next);
     };
     const onChainChanged = (newChainId: string) => {
+      if (!acceptWalletEvents.current) return;
       setChainId(parseInt(newChainId, 16));
     };
     // The SDK's connect event can announce 0x1 whatever the wallet's chain.
@@ -137,8 +187,11 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       syncChainId();
     };
     const onDisconnect = () => {
+      if (!acceptWalletEvents.current) return;
+      sessionGeneration.current += 1;
       setAccount(null);
       setChainId(null);
+      finishSignIn();
     };
 
     provider.on("accountsChanged", onAccountsChanged);
@@ -149,12 +202,13 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     // Restore an existing session without prompting. `eth_accounts` answers
     // `[]` when there is none; signing in is left to the user's tap.
     (async () => {
+      const generation = sessionGeneration.current;
       try {
         const accounts = (await provider.request({
           method: "eth_accounts",
         })) as string[];
         const restored = accounts?.[0] as `0x${string}` | undefined;
-        if (restored) {
+        if (restored && generation === sessionGeneration.current && acceptWalletEvents.current) {
           setAccount(restored);
           await syncChainId();
         }
@@ -169,39 +223,34 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       provider.removeListener("connect", onConnect);
       provider.removeListener("disconnect", onDisconnect);
     };
-  }, [provider]);
-
-  const [loginPending, setLoginPending] = useState(false);
-  // The SDK settles `login()` with null as soon as the login browser is
-  // dismissed, and Android users always dismiss it by hand, so null does not
-  // mean cancelled: the wallet may still confirm, and the account then arrives
-  // through `accountsChanged`. Keep waiting for it, for a while.
-  const [awaitingWallet, setAwaitingWallet] = useState(false);
-
-  useEffect(() => {
-    if (!awaitingWallet) return;
-    if (account) {
-      setAwaitingWallet(false);
-      return;
-    }
-    const timer = setTimeout(() => setAwaitingWallet(false), 45_000);
-    return () => clearTimeout(timer);
-  }, [awaitingWallet, account]);
+  }, [provider, syncChainId, finishSignIn]);
 
   const signIn = useCallback(async () => {
-    if (!provider || loginPending) return;
-    setLoginPending(true);
+    if (!provider || loginPending.current) return;
+    const generation = ++sessionGeneration.current;
+    loginPending.current = true;
+    setIsSigningIn(true);
+    // Bound even an SDK login that never settles. Allow time for the user to
+    // authenticate in the browser, then a shorter window for wallet events.
+    loginTimer.current = setTimeout(cancelSignIn, 120_000);
     try {
-      const method = await provider.login();
-      if (method === null) setAwaitingWallet(true);
+      await sessionReset.current;
+      if (generation !== sessionGeneration.current) return;
+      acceptWalletEvents.current = true;
+      await provider.login();
+      if (generation !== sessionGeneration.current || !loginPending.current) return;
+      if (loginTimer.current !== null) clearTimeout(loginTimer.current);
+      // A null result means the browser closed, not necessarily cancellation.
+      // Keep waiting until BOTH the account and chain are available.
+      loginTimer.current = setTimeout(cancelSignIn, 45_000);
+      // Retrying an existing SDK session need not emit another connect event.
+      await syncChainId();
     } catch (error) {
+      if (generation !== sessionGeneration.current || !loginPending.current) return;
       console.error("Sign-in failed:", error);
-    } finally {
-      setLoginPending(false);
+      cancelSignIn();
     }
-  }, [provider, loginPending]);
-
-  const cancelSignIn = useCallback(() => setAwaitingWallet(false), []);
+  }, [provider, cancelSignIn, syncChainId]);
 
   const signTypedData = useCallback(
     async (typedData: TypedDataDefinition) => {
@@ -239,9 +288,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         signTypedData,
         signIn,
         cancelSignIn,
-        // The chain arrives just after the account; without this the sign-in
-        // button would flash back in between.
-        isSigningIn: loginPending || awaitingWallet || (!!account && !chainId),
+        isSigningIn,
       }}
     >
       {children}
