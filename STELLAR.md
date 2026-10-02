@@ -75,7 +75,7 @@ EXPO_PUBLIC_STELLAR_API_URL=http://localhost:3000
 
 ## Stellar Native tab
 
-The **Stellar Native** tab uses WaaP's native Ed25519 Stellar account (`G…`). It shares the existing login and WebView through `getWaaPStellarProvider({ network })`. My RelayID and Stellar Native consume a single root-level Stellar wallet state, so tab navigation does not start another connection request. The wallet WebView mounts after SDK initialization to avoid attaching to a previous event bus after a React remount. It does not use the contract-wallet backend or move existing contract-wallet funds.
+The **Stellar** tab (the `(stellar-native)` route) uses WaaP's native Ed25519 Stellar account (`G…`). It shares the existing login and WebView through `getWaaPStellarProvider({ network })`. My RelayID and Stellar Native consume a single root-level Stellar wallet state, so tab navigation does not start another connection request. The wallet WebView mounts after SDK initialization to avoid attaching to a previous event bus after a React remount. It does not use the contract-wallet backend or move existing contract-wallet funds.
 
 ### Configuration
 
@@ -118,8 +118,8 @@ the user to retry indefinitely.
 - Native address with copy, XLM balance and manual refresh. Horizon 404 is shown as an account awaiting first funding, not a zero balance.
 - **Get test XLM:** Friendbot creates an unfunded account on testnet. Never available on mainnet.
 - **Disbursements:** sign in with the native Stellar account, list assigned XLM, and redeem pending payments. The RelayID web server sends treasury funds after verifying the signed message; no beneficiary transaction or fee is required.
-- **Sign message:** asks WaaP to sign `Hello Stellar!` using Stellar message signing. This is a demonstration, not a reusable backend authentication credential.
-- **Send test payment:** builds a one-stroop (`0.0000001` XLM) self-payment, with a fresh sequence, a 100-stroop fee and a three-minute validity window. WaaP signs the transaction envelope; the app checks that the body is unchanged and submits it to testnet Horizon.
+- **Hidden signing demo:** the wallet helper can ask WaaP to sign `Hello Stellar!` using Stellar message signing. This is a demonstration, not a reusable backend authentication credential.
+- **Hidden payment demo:** the wallet helper builds a one-stroop (`0.0000001` XLM) self-payment, with a fresh sequence, a 100-stroop fee and a three-minute validity window. WaaP signs the transaction envelope; the app checks that the body is unchanged and submits it to testnet Horizon.
 - Submission and confirmation are separate states. An uncertain submission retains its transaction hash, exposes **Check status**, and prevents another send while pending. The explorer link uses the selected network.
 - Logout/account changes clear the tab's data and abort network reads. Late signatures after logout or an action timeout are never broadcast. The session probe has a 30-second deadline; other actions have a two-minute deadline; individual HTTP reads have a 15-second deadline including the response body.
 
@@ -142,9 +142,8 @@ Device smoke test:
 
 1. Sign in normally and open **Stellar Native**; confirm the Testnet badge and native address.
 2. Get test XLM if the account is new, then refresh the balance.
-3. Sign `Hello Stellar!` and inspect the returned signature.
-4. Send the test payment; review the source, destination, amount and network in WaaP. Check confirmation and open the explorer link.
-5. Sign out and sign in with another account; confirm no previous address, signature or transaction remains.
+3. Follow the native disbursement acceptance steps below. The payment and greeting-signature demos are hidden from the screen.
+4. Sign out and sign in with another account; confirm no previous address, signature or transaction remains.
 
 Unit tests replace the native wallet bridge and HTTP responses. Bundle exports validate Metro/Hermes compatibility; they do not replace the device smoke test above.
 
@@ -160,4 +159,6 @@ Unit tests replace the native wallet bridge and HTTP responses. Bundle exports v
 - Concurrency: disbursement signing shares the existing wallet approval lock. Only pending rows from a successful list read can be redeemed. Every redeem response (including errors/timeouts) triggers a list refresh. A failed refresh disables redemption until a successful read. Unknown payment outcomes never trigger automatic POST retries. Only `expired_signature`/`replay` can retry once, using a new nonce and signature, and only after a fresh pending status for redemption.
 - Tests: both published offline SEP-53 vectors, session restoration/storage isolation, logout races, expired sessions, duplicate approval attempts, all documented API errors and ambiguous payment responses.
 
-Testnet acceptance: add the app's **G-address** as a beneficiary at the RelayID web app `/beneficiaries`, assign XLM, tap **Sign in to see disbursements**, then **Redeem** and approve the corresponding message in WaaP. Confirm **Received** and open the transaction. A first disbursement to an unfunded account must be at least 1 XLM. Restart the app to verify session restoration, and sign out to verify credential removal.
+Testnet acceptance: add the app's **G-address** as a beneficiary at the RelayID web app `/beneficiaries`, assign XLM, tap **Sign to see disbursements**, then **Redeem** and approve the corresponding message in WaaP. Confirm **Received** and open the transaction. A first disbursement to an unfunded account must be at least 1 XLM. Restart the app to verify session restoration, and sign out to verify credential removal.
+
+The visible bottom tabs are ordered **My RelayID**, **Invite**, **Stellar**, **Help**. The signed session message still uses the exact server-contract statement (`Sign in to RelayID to see your disbursements.`); button wording does not change the signed payload.

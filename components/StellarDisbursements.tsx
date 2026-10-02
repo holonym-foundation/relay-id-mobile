@@ -43,12 +43,12 @@ export function StellarDisbursements() {
           <ActivityIndicator color="#2563eb" />
           <Text accessibilityLiveRegion="polite" className="text-sm text-gray-600">
             {disbursements.busy === 'redeem' ? 'Redeeming… this can take a minute.' :
-              disbursements.busy === 'signIn' ? 'Approve sign-in in WaaP…' : 'Checking disbursements…'}
+              disbursements.busy === 'signIn' ? 'Approve the signature in WaaP…' : 'Checking disbursements…'}
           </Text>
         </HStack>}
         {!disbursements.authenticated && disbursements.busy !== 'restore' && (
           <Button variant="outline" isDisabled={busy} onPress={() => void disbursements.signIn()}>
-            <ButtonText>Sign in to see disbursements</ButtonText>
+            <ButtonText>Sign to see disbursements</ButtonText>
           </Button>
         )}
         {disbursements.authenticated && disbursements.loaded && disbursements.items.length === 0 && (

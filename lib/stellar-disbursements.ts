@@ -72,7 +72,7 @@ export function disbursementErrorMessage(error: unknown) {
     invalid_signature: 'The signature could not be verified. Check that the app and RelayID use the same Stellar network.',
     expired_signature: 'The signature expired. Check your device clock and try again.',
     replay: 'This signature was already used. Please try again to sign a fresh message.',
-    no_session: 'Sign in again to see your disbursements.',
+    no_session: 'Sign again to see your disbursements.',
     not_beneficiary: 'This account has no disbursements.',
     disbursement_not_found: 'This disbursement is no longer available. The list has been refreshed.',
     not_redeemable: 'This disbursement is no longer ready to redeem. Check its latest status.',

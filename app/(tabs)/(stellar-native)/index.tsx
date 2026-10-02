@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
-import { ActivityIndicator, Linking, ScrollView } from 'react-native';
+import { ActivityIndicator, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
@@ -13,9 +13,8 @@ import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { toError, useDemoMode } from '@/contexts/DemoContext';
-import { STELLAR_DEMO_MESSAGE, useNativeStellarWallet } from '@/hooks/useNativeStellarWallet';
+import { useNativeStellarWallet } from '@/hooks/useNativeStellarWallet';
 import { useToast } from '@/hooks/useToast';
-import { transactionUrl } from '@/lib/stellar-native';
 
 export default function NativeStellarWalletScreen() {
   const { account } = useDemoMode();
@@ -34,20 +33,11 @@ export default function NativeStellarWalletScreen() {
     }
   };
 
-  const openTransaction = async () => {
-    if (!wallet.transaction) return;
-    try {
-      await Linking.openURL(transactionUrl(wallet.network, wallet.transaction.hash));
-    } catch (error) {
-      toast.show({ title: 'Unable to open transaction', description: toError(error).message, action: 'error' });
-    }
-  };
-
   if (!account) {
     return <NotConnectedState
       icon="account-balance-wallet"
       title="Your native Stellar wallet"
-      description="Sign in to see your Stellar address, check your XLM balance, and try your wallet."
+      description="Sign in to see your Stellar address, check your XLM balance, and redeem disbursements."
       isLogin
     />;
   }
@@ -59,7 +49,7 @@ export default function NativeStellarWalletScreen() {
         <VStack className="px-5 py-5 gap-6">
           <HStack className="items-center justify-between">
             <VStack className="gap-1 flex-1">
-              <Heading className="text-xl font-bold text-gray-900">Stellar Native</Heading>
+              <Heading className="text-xl font-bold text-gray-900">Stellar</Heading>
               <Text className="text-sm text-gray-500">Your Stellar account, secured by WaaP.</Text>
             </VStack>
             <Box className={`px-3 py-1 rounded-full ${testnet ? 'bg-amber-100' : 'bg-blue-100'}`}>
@@ -125,56 +115,6 @@ export default function NativeStellarWalletScreen() {
               </VStack>
 
               <StellarDisbursements />
-
-              {testnet && (
-                <VStack className="gap-3">
-                  <Heading className="text-lg font-semibold text-gray-900">Try a Stellar payment</Heading>
-                  <Text className="text-sm text-gray-600">Send 0.0000001 test XLM to your own address. You’ll review and approve the payment in WaaP. Only the network fee changes your balance.</Text>
-                  <Button isDisabled={busy || !wallet.balance?.exists || wallet.transaction?.status === 'pending'}
-                    onPress={() => void wallet.sendTestPayment()}>
-                    <ButtonText>{wallet.busy === 'payment' ? 'Waiting for your payment…' : 'Send test payment'}</ButtonText>
-                  </Button>
-                  {wallet.transaction && (
-                    <VStack className="rounded-xl border border-gray-200 bg-gray-50 p-4 gap-2">
-                      <Text className="text-sm font-semibold text-gray-900">
-                        {wallet.transaction.status === 'confirmed' ? 'Payment confirmed' :
-                          wallet.transaction.status === 'failed' ? 'Payment failed' : 'Payment submitted — confirmation pending'}
-                      </Text>
-                      <Text selectable className="text-xs font-mono text-gray-600">{wallet.transaction.hash}</Text>
-                      <HStack className="gap-2">
-                        <Button size="sm" variant="link" onPress={() => void openTransaction()}>
-                          <ButtonText>View transaction</ButtonText>
-                        </Button>
-                        {wallet.transaction.status === 'pending' && (
-                          <Button size="sm" variant="link" isDisabled={busy} onPress={() => void wallet.checkTransaction()}>
-                            <ButtonText>Check status</ButtonText>
-                          </Button>
-                        )}
-                      </HStack>
-                    </VStack>
-                  )}
-                </VStack>
-              )}
-
-              <VStack className="gap-3">
-                <Heading className="text-lg font-semibold text-gray-900">Try signing a message</Heading>
-                <Text className="text-sm text-gray-600">Sign a greeting with your Stellar wallet. This does not move funds or cost a network fee.</Text>
-                <Box className="bg-gray-50 rounded-xl border border-gray-200 p-4">
-                  <Text className="text-sm text-gray-700">{STELLAR_DEMO_MESSAGE}</Text>
-                </Box>
-                <Button variant="outline" isDisabled={busy} onPress={() => void wallet.signMessage()}>
-                  <ButtonText>{wallet.busy === 'message' ? 'Waiting for approval…' : 'Sign message'}</ButtonText>
-                </Button>
-                {wallet.signature && (
-                  <VStack className="bg-green-50 rounded-xl border border-green-200 p-4 gap-2">
-                    <Text className="text-sm font-semibold text-green-800">Message signed</Text>
-                    <Text selectable numberOfLines={3} className="text-xs font-mono text-green-800">{wallet.signature}</Text>
-                    <Button size="sm" variant="link" onPress={() => void copy(wallet.signature!, 'Signature')}>
-                      <ButtonText>Copy signature</ButtonText>
-                    </Button>
-                  </VStack>
-                )}
-              </VStack>
             </>
           )}
         </VStack>

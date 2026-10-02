@@ -167,7 +167,7 @@ export class DisbursementController {
       catch {
         this.check(signal);
         const message = failure ? `${disbursementErrorMessage(failure)} ` : '';
-        this.patch({ error: `${message}Unable to refresh the list. Refresh or sign in again before redeeming.`, fresh: false });
+        this.patch({ error: `${message}Unable to refresh the list. Refresh or sign again before redeeming.`, fresh: false });
         return;
       }
       this.check(signal);
