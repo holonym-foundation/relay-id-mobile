@@ -19,6 +19,8 @@ export type WaaPEnvironment = (typeof WAAP_ENVIRONMENTS)[number];
 export const WAAP_ENVIRONMENT: WaaPEnvironment = WAAP_ENVIRONMENTS.find(
   (env) => env === process.env.EXPO_PUBLIC_WAAP_ENVIRONMENT
 ) ?? "production";
+// Optional Stellar-enabled preview/local deployment. The SDK validates the origin.
+export const WAAP_WALLET_ORIGIN = process.env.EXPO_PUBLIC_WAAP_WALLET_ORIGIN || undefined;
 export const PROJECT_ID = process.env.EXPO_PUBLIC_WC_PROJECT_ID;
 export const RELAYID_API_URL = process.env.EXPO_PUBLIC_RELAYID_API_URL;
 export const RELAYID_APP_API_TOKEN =

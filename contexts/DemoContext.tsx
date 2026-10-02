@@ -1,5 +1,5 @@
 import { appChain } from "@/config/chains";
-import { WAAP_ENVIRONMENT } from "@/lib/constants";
+import { WAAP_ENVIRONMENT, WAAP_WALLET_ORIGIN } from "@/lib/constants";
 import { marshalTypedData } from "@/lib/utils/serialize";
 import {
   createExpoNativeBrowser,
@@ -141,6 +141,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     try {
       const provider = initWaapNative({
         environment: WAAP_ENVIRONMENT,
+        walletOrigin: WAAP_WALLET_ORIGIN,
         customConfig: {
           styles: {
             darkMode: true,

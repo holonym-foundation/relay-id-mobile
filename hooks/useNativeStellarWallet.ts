@@ -15,7 +15,7 @@ import {
   type StellarTransactionStatus,
 } from '@/lib/stellar-native';
 
-type Action = 'connect' | 'refresh' | 'fund' | 'message' | 'payment' | 'confirm';
+type Action = 'restore' | 'connect' | 'refresh' | 'fund' | 'message' | 'payment' | 'confirm';
 type Transaction = { hash: string; status: StellarTransactionStatus };
 type WalletState = {
   owner: string | null;
@@ -58,7 +58,7 @@ export function useNativeStellarWallet() {
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, action === 'connect' ? 30_000 : 120_000);
+    }, action === 'restore' ? 30_000 : 120_000);
     let onAbort: () => void = () => {};
     const aborted = new Promise<never>((_resolve, reject) => {
       onAbort = () => reject(new Error('The wallet took too long to respond. Please try again.'));
@@ -75,7 +75,12 @@ export function useNativeStellarWallet() {
     } catch (error) {
       if (timedOut && generation.current === currentGeneration) {
         setState((previous) => ({ ...previous, error: toError(error).message }));
-      } else update({ error: toError(error).message });
+      } else {
+        const message = toError(error).message;
+        update({ error: /unknown method.*stellar_|not implemented.*stellar_/i.test(message)
+          ? 'This WaaP service does not support Stellar yet. The app needs a Stellar-enabled wallet service.'
+          : message });
+      }
     } finally {
       clearTimeout(timer);
       controller.signal.removeEventListener('abort', onAbort);
@@ -86,13 +91,14 @@ export function useNativeStellarWallet() {
     }
   }, [owner, provider]);
 
-  const connect = useCallback(() => run('connect', async (signal, update, isCurrent) => {
-    // initWaapNative() already configured the shared session and TAP mode.
-    // Probe it rather than starting a second browser login from this tab.
+  const connect = useCallback((interactive = true) => run(interactive ? 'connect' : 'restore', async (signal, update, isCurrent) => {
+    // Startup must stay silent. On an explicit tap, use getAddress so WaaP
+    // can connect and report errors that restoreAccount deliberately hides.
     const stellar = getWaaPStellarProvider({ network });
-    const restored = await stellar.restoreAccount();
+    let restored = await stellar.restoreAccount();
     if (!isCurrent()) return;
-    if (!restored) throw new Error('Your Stellar wallet is not available yet. Try connecting again.');
+    if (!restored && interactive) restored = await stellar.getAddress();
+    if (!isCurrent() || !restored) return;
     update({ address: restored.address });
     update({ balance: await fetchStellarBalance(restored.address, network, signal) });
   }), [run, network]);
@@ -102,7 +108,7 @@ export function useNativeStellarWallet() {
     active.current?.abort();
     active.current = null;
     setState(emptyState(owner));
-    if (owner && provider) void connect();
+    if (owner && provider) void connect(false);
     return () => {
       generation.current += 1;
       active.current?.abort();

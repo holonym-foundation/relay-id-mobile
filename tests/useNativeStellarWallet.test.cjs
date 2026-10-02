@@ -16,6 +16,7 @@ async function mount(t, options = {}) {
   const calls = [];
   const sdk = {
     restoreAccount: async () => ({ address: `G-${shared.account}` }),
+    getAddress: async () => { calls.push(['getAddress']); return { address: `G-${shared.account}` }; },
     signMessage: async (_message, args) => { calls.push(['signMessage', args]); return { signedMessage: 'signature' }; },
     signTransaction: async (_xdr, args) => { calls.push(['signTransaction', args]); return { signedTxXdr: 'signed' }; },
     ...options.sdk,
@@ -137,4 +138,36 @@ test('the wallet cannot silently change the payment before submission', async (t
   await act(async () => { await app.get().sendTestPayment(); });
   assert.equal(app.calls.some(([name]) => name === 'submit'), false);
   assert.match(app.get().error, /different payment/);
+});
+
+
+test('startup stays silent when the Stellar session cannot be restored', async (t) => {
+  const app = await mount(t, { sdk: { restoreAccount: async () => null } });
+  assert.equal(app.get().address, null);
+  assert.equal(app.get().error, null);
+  assert.equal(app.calls.some(([name]) => name === 'getAddress'), false);
+  await act(async () => { await app.get().connect(); });
+  assert.equal(app.get().address, 'G-0xfirst');
+  assert.equal(app.calls.filter(([name]) => name === 'getAddress').length, 1);
+});
+
+test('an explicit retry explains an unsupported wallet deployment', async (t) => {
+  const app = await mount(t, { sdk: {
+    restoreAccount: async () => null,
+    getAddress: async () => { throw new Error('Unknown method: stellar_connect'); },
+  } });
+  await act(async () => { await app.get().connect(); });
+  assert.match(app.get().error, /does not support Stellar yet/);
+  assert.equal(app.get().busy, null);
+});
+
+test('logout during the silent probe never starts an interactive login', async (t) => {
+  let read;
+  const app = await mount(t, { sdk: { restoreAccount: async () => read ? read.promise : null } });
+  read = deferred();
+  await act(async () => { void app.get().connect(); });
+  await app.setAccount(null);
+  await act(async () => read.resolve(null));
+  assert.equal(app.calls.some(([name]) => name === 'getAddress'), false);
+  assert.equal(app.get().address, null);
 });
