@@ -1,6 +1,7 @@
 import { Alert } from "react-native";
 
 import { useDemoMode } from "@/contexts/DemoContext";
+import { useStellarDisbursements } from "@/hooks/useStellarDisbursements";
 import { useToast } from "@/hooks/useToast";
 
 /**
@@ -10,6 +11,7 @@ import { useToast } from "@/hooks/useToast";
 export function useLogout() {
   const { isDemoMode, toggleDemoMode, provider } = useDemoMode();
   const toast = useToast();
+  const disbursements = useStellarDisbursements();
 
   const handleLogout = () => {
     Alert.alert(
@@ -27,10 +29,12 @@ export function useLogout() {
             }
 
             try {
-                await provider?.logout();
+              const sessionEnded = await disbursements.endSession();
+              await provider?.logout();
               toast.show({
                 title: "Disconnected",
-                description: "Your wallet has been disconnected.",
+                description: sessionEnded ? "Your wallet has been disconnected." :
+                  "Disconnected and cleared local sign-in. The server could not be reached to end the disbursement session.",
                 action: "success",
               });
             } catch (error) {

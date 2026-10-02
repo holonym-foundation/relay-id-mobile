@@ -11,7 +11,19 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "org.refunite.relayid.app",
-      "associatedDomains": ["applinks:relayid.app"]
+      "associatedDomains": ["applinks:relayid.app"],
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "metamask",
+          "trust",
+          "safe",
+          "rainbow",
+          "uniswap",
+          "zerion",
+          "imtokenv2",
+          "spot"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -56,6 +68,7 @@
         }
       ],
       "expo-web-browser",
+      "./android-wallet-queries.js",
       [
         "expo-camera",
         {

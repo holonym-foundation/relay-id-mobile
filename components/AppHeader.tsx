@@ -12,23 +12,28 @@ import { Text } from "@/components/ui/text";
 import { VStack } from "@/components/ui/vstack";
 import { useDemoMode } from "@/contexts/DemoContext";
 import { useLogout } from "@/hooks/useLogout";
+import { useNativeStellarWallet } from "@/hooks/useNativeStellarWallet";
 import { useToast } from "@/hooks/useToast";
 
 export function AppHeader() {
   const router = useRouter();
   const { isDemoMode, account, isConnected } = useDemoMode();
   const toast = useToast();
+  const { address: stellarAddress, busy } = useNativeStellarWallet();
   const [showSettingsMenu, setShowSettingsMenu] = React.useState(false);
   const { handleLogout } = useLogout();
 
-  const handleCopyRelayID = async () => {
-    if (account) {
-      await Clipboard.setStringAsync(account);
+  const handleCopyStellarAddress = async () => {
+    if (!stellarAddress) return;
+    try {
+      await Clipboard.setStringAsync(stellarAddress);
       toast.show({
         title: "Copied!",
-        description: "RelayID copied to clipboard",
+        description: "Stellar address copied to clipboard",
         action: "success",
       });
+    } catch {
+      toast.show({ title: "Unable to copy Stellar address", action: "error" });
     }
   };
 
@@ -104,14 +109,19 @@ export function AppHeader() {
                 <HStack className="items-center justify-between bg-gray-50 px-4 py-3 rounded-lg">
                   <VStack className="flex-1">
                     <Text className="text-sm font-medium text-gray-700">
-                      Your RelayID
+                      Your Stellar address
                     </Text>
                     <Text className="text-sm font-mono text-gray-600">
-                      {`${account?.slice(0, 10)}...${account?.slice(-8)}`}
+                      {stellarAddress
+                        ? `${stellarAddress.slice(0, 10)}...${stellarAddress.slice(-8)}`
+                        : busy ? "Loading Stellar address…" : "Stellar address not available"}
                     </Text>
                   </VStack>
                   <Pressable
-                    onPress={handleCopyRelayID}
+                    onPress={handleCopyStellarAddress}
+                    disabled={!stellarAddress}
+                    accessibilityLabel="Copy Stellar address"
+                    accessibilityState={{ disabled: !stellarAddress }}
                     className="p-2 rounded-lg bg-white border border-gray-200"
                   >
                     <Feather name="copy" size={16} color="#6b7280" />

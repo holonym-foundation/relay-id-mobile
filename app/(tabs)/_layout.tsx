@@ -1,9 +1,9 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
-  Icon,
-  Label,
-  NativeTabs,
-  VectorIcon,
+    Icon,
+    Label,
+    NativeTabs,
+    VectorIcon,
 } from "expo-router/unstable-native-tabs";
 import { Platform } from "react-native";
 
@@ -29,6 +29,19 @@ export default function TabLayout() {
           android: (
             <Icon
               src={<VectorIcon family={MaterialIcons} name="group-add" />}
+              selectedColor="blue"
+            />
+          ),
+        })}
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="(stellar)" hidden />
+      <NativeTabs.Trigger name="(stellar-native)">
+        <Label>Stellar</Label>
+        {Platform.select({
+          ios: <Icon sf={{ default: "sparkles", selected: "sparkles" }} />,
+          android: (
+            <Icon
+              src={<VectorIcon family={MaterialIcons} name="auto-awesome" />}
               selectedColor="blue"
             />
           ),

@@ -1,0 +1,252 @@
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
+const React = require('react');
+const { create, act } = require('react-test-renderer');
+const { loadTs } = require('./helpers/load-ts.cjs');
+global.IS_REACT_ACT_ENVIRONMENT = true;
+const hash = 'a'.repeat(64);
+const deferred = () => {
+  let resolve;
+  const promise = new Promise((yes) => { resolve = yes; });
+  return { promise, resolve };
+};
+async function mount(t, options = {}) {
+  const shared = { account: '0xfirst', provider: {} };
+  const timers = new Map();
+  const calls = [];
+  const sdk = {
+    restoreAccount: async () => ({ address: `G-${shared.account}` }),
+    getAddress: async () => { calls.push(['getAddress']); return { address: `G-${shared.account}` }; },
+    signMessage: async (_message, args) => { calls.push(['signMessage', args]); return { signedMessage: 'signature' }; },
+    signTransaction: async (_xdr, args) => { calls.push(['signTransaction', args]); return { signedTxXdr: 'signed' }; },
+    ...options.sdk,
+  };
+  const helpers = {
+    STELLAR_NATIVE_NETWORK: 'TESTNET',
+    networkPassphrase: () => 'testnet-passphrase',
+    fetchStellarBalance: async () => ({ exists: true, balance: '10000.0000000' }),
+    fundStellarTestAccount: async () => {},
+    buildStellarTestPayment: async () => 'unsigned',
+    signedTransactionHash: () => hash,
+    submitStellarTestPayment: async () => { calls.push(['submit']); },
+    fetchStellarTransactionStatus: async () => 'confirmed',
+    ...options.helpers,
+  };
+  const mod = loadTs(require.resolve('../hooks/useNativeStellarWallet.ts'), {
+    '@/contexts/DemoContext': { useDemoMode: () => shared, toError: (error) => error },
+    '@human.tech/waap-sdk-react-native/stellar': { getWaaPStellarProvider: (args) => {
+      assert.equal(args.network, 'TESTNET');
+      return sdk;
+    } },
+    '@/lib/stellar-native': helpers,
+  }, {
+    setTimeout: (fn, ms) => { const id = Symbol(); timers.set(id, { fn, ms }); return id; },
+    clearTimeout: (id) => timers.delete(id),
+  });
+  let current;
+  let second;
+  function Probe() { current = mod.useNativeStellarWallet(); return null; }
+  function SecondProbe() { second = mod.useNativeStellarWallet(); return null; }
+  const tree = (showSecond = true) => React.createElement(mod.StellarWalletProvider, null,
+    React.createElement(Probe), showSecond ? React.createElement(SecondProbe) : null);
+  let root;
+  await act(async () => { root = create(tree()); });
+  t.after(async () => { await act(async () => root.unmount()); });
+  return {
+    calls, timers, get: () => current, getSecond: () => second,
+    toggleSecond: async (show) => {
+      await act(async () => root.update(tree(show)));
+    },
+    setAccount: async (account) => {
+      shared.account = account;
+      await act(async () => root.update(tree()));
+    },
+  };
+}
+
+test('uses the existing session and reads its native Stellar balance', async (t) => {
+  const app = await mount(t);
+  assert.equal(app.get().address, 'G-0xfirst');
+  assert.equal(app.get().balance.balance, '10000.0000000');
+  assert.equal(app.get().busy, null);
+});
+
+test('logout clears the address and ignores a delayed balance read', async (t) => {
+  const read = deferred();
+  const app = await mount(t, { helpers: { fetchStellarBalance: () => read.promise } });
+  await app.setAccount(null);
+  await act(async () => read.resolve({ exists: true, balance: '123' }));
+  assert.equal(app.get().address, null);
+  assert.equal(app.get().balance, null);
+  assert.equal(app.get().busy, null);
+});
+
+test('switching accounts replaces native state and clears the old signature', async (t) => {
+  const app = await mount(t);
+  await act(async () => { await app.get().signMessage(); });
+  assert.equal(app.get().signature, 'signature');
+  await app.setAccount('0xsecond');
+  assert.equal(app.get().address, 'G-0xsecond');
+  assert.equal(app.get().signature, null);
+});
+
+test('a signature arriving after logout is never broadcast', async (t) => {
+  const signing = deferred();
+  const app = await mount(t, { sdk: { signTransaction: () => signing.promise } });
+  await act(async () => { void app.get().sendTestPayment(); });
+  await app.setAccount(null);
+  await act(async () => signing.resolve({ signedTxXdr: 'signed' }));
+  assert.equal(app.calls.some(([name]) => name === 'submit'), false);
+  assert.equal(app.get().transaction, null);
+});
+
+test('a timed-out signature is never broadcast and releases the busy state', async (t) => {
+  const signing = deferred();
+  const app = await mount(t, { sdk: { signTransaction: () => signing.promise } });
+  await act(async () => { void app.get().sendTestPayment(); });
+  await act(async () => {
+    for (const timer of app.timers.values()) if (timer.ms === 120_000) timer.fn();
+  });
+  assert.equal(app.get().busy, null);
+  assert.match(app.get().error, /too long/);
+  await act(async () => signing.resolve({ signedTxXdr: 'signed' }));
+  assert.equal(app.calls.some(([name]) => name === 'submit'), false);
+});
+
+test('payment binds the requested account and confirms separately from signing', async (t) => {
+  const app = await mount(t);
+  await act(async () => { await app.get().sendTestPayment(); });
+  const signing = app.calls.find(([name]) => name === 'signTransaction')[1];
+  assert.equal(signing.address, 'G-0xfirst');
+  assert.equal(signing.networkPassphrase, 'testnet-passphrase');
+  assert.notEqual(signing.submit, true);
+  assert.equal(app.calls.filter(([name]) => name === 'submit').length, 1);
+  assert.equal(app.get().transaction.hash, hash);
+  assert.equal(app.get().transaction.status, 'confirmed');
+});
+
+test('an uncertain submission retains the hash and blocks duplicate sends', async (t) => {
+  let submitted = 0;
+  const app = await mount(t, { helpers: { submitStellarTestPayment: async () => {
+    submitted++;
+    throw new Error('connection lost');
+  } } });
+  await act(async () => { await app.get().sendTestPayment(); });
+  assert.equal(app.get().transaction.status, 'pending');
+  assert.equal(app.get().transaction.hash, hash);
+  await act(async () => { await app.get().sendTestPayment(); });
+  assert.equal(submitted, 1);
+  await act(async () => { await app.get().checkTransaction(); });
+  assert.equal(app.get().transaction.status, 'confirmed');
+});
+
+test('the wallet cannot silently change the payment before submission', async (t) => {
+  const app = await mount(t, { helpers: { signedTransactionHash: (xdr) => xdr === 'unsigned' ? hash : 'b'.repeat(64) } });
+  await act(async () => { await app.get().sendTestPayment(); });
+  assert.equal(app.calls.some(([name]) => name === 'submit'), false);
+  assert.match(app.get().error, /different payment/);
+});
+
+
+test('startup stays silent when the Stellar session cannot be restored', async (t) => {
+  const app = await mount(t, { sdk: { restoreAccount: async () => null } });
+  assert.equal(app.get().address, null);
+  assert.equal(app.get().error, null);
+  assert.equal(app.calls.some(([name]) => name === 'getAddress'), false);
+  await act(async () => { await app.get().connect(); });
+  assert.equal(app.get().address, 'G-0xfirst');
+  assert.equal(app.calls.filter(([name]) => name === 'getAddress').length, 1);
+});
+
+test('an explicit retry explains an unsupported wallet deployment', async (t) => {
+  const app = await mount(t, { sdk: {
+    restoreAccount: async () => null,
+    getAddress: async () => { throw new Error('Unknown method: stellar_connect'); },
+  } });
+  await act(async () => { await app.get().connect(); });
+  assert.match(app.get().error, /does not support Stellar yet/);
+  assert.equal(app.get().busy, null);
+});
+
+test('logout during the silent probe never starts an interactive login', async (t) => {
+  let read;
+  const app = await mount(t, { sdk: { restoreAccount: async () => read ? read.promise : null } });
+  read = deferred();
+  await act(async () => { void app.get().connect(); });
+  await app.setAccount(null);
+  await act(async () => read.resolve(null));
+  assert.equal(app.calls.some(([name]) => name === 'getAddress'), false);
+  assert.equal(app.get().address, null);
+});
+
+
+test('tabs share a single connection and opening another tab does not restore again', async (t) => {
+  let restores = 0;
+  const app = await mount(t, { sdk: { restoreAccount: async () => {
+    restores++;
+    return { address: 'G-shared' };
+  } } });
+  assert.equal(restores, 1);
+  assert.equal(app.get().address, app.getSecond().address);
+  await app.toggleSecond(false);
+  await app.toggleSecond(true);
+  assert.equal(restores, 1);
+  await act(async () => { await app.get().signMessage(); });
+  assert.equal(app.getSecond().signature, 'signature');
+  await app.setAccount(null);
+  assert.equal(app.get().address, null);
+  assert.equal(app.getSecond().address, null);
+});
+
+test('a hanging restore times out for both tabs and a retry recovers both', async (t) => {
+  let first = true;
+  const hung = deferred();
+  const app = await mount(t, { sdk: { restoreAccount: () => {
+    if (first) { first = false; return hung.promise; }
+    return Promise.resolve({ address: 'G-recovered' });
+  } } });
+  await act(async () => {
+    for (const timer of app.timers.values()) if (timer.ms === 30_000) timer.fn();
+  });
+  assert.equal(app.get().busy, null);
+  assert.equal(app.getSecond().busy, null);
+  await act(async () => { await app.getSecond().connect(); });
+  assert.equal(app.get().address, 'G-recovered');
+  assert.equal(app.getSecond().address, 'G-recovered');
+  await act(async () => hung.resolve({ address: 'G-stale' }));
+  assert.equal(app.get().address, 'G-recovered');
+});
+
+test('disbursement signing shares the wallet lock and passes raw text, account and network', async (t) => {
+  const signing = deferred();
+  let text;
+  const app = await mount(t, { sdk: { signMessage: async (value, args) => {
+    text = value;
+    assert.equal(args.address, 'G-0xfirst');
+    assert.equal(args.networkPassphrase, 'testnet-passphrase');
+    return signing.promise;
+  } } });
+  const signal = new AbortController();
+  let promise;
+  await act(async () => { promise = app.get().signActionMessage('RelayID\nTest action', signal.signal); });
+  await act(async () => { await assert.rejects(app.get().signActionMessage('duplicate', signal.signal), /busy/); });
+  assert.equal(app.get().busy, 'disbursement');
+  assert.equal(text, 'RelayID\nTest action');
+  await act(async () => { signing.resolve({ signedMessage: 'signature', signerAddress: 'G-0xfirst' }); await promise; });
+  assert.equal(app.get().busy, null);
+});
+
+test('cancelling disbursement approval releases the lock and rejects a late signature', async (t) => {
+  const signing = deferred();
+  const app = await mount(t, { sdk: { signMessage: () => signing.promise } });
+  const controller = new AbortController();
+  let failed;
+  await act(async () => {
+    failed = assert.rejects(app.get().signActionMessage('action', controller.signal));
+    controller.abort();
+    await failed;
+  });
+  assert.equal(app.get().busy, null);
+  await act(async () => signing.resolve({ signedMessage: 'late' }));
+  assert.equal(app.get().signature, null);
+});

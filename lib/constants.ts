@@ -11,8 +11,19 @@ export const INVITE_TTL_SECONDS = Number(
 );
 export const RELAYER_CONTRACT_ADDRESS =
   "0x85c93B4d068dbaB44D86006dfd6d52179534EB79";
-export const CHAIN_ID = process.env.EXPO_PUBLIC_CHAIN_ID;
+// The chain RelayID lives on: the Hats tree is read here and invites are
+// signed for it, whatever chain the wallet happens to be on.
+export const CHAIN_ID = Number(process.env.EXPO_PUBLIC_CHAIN_ID || 11155111);
+const WAAP_ENVIRONMENTS = ["development", "staging", "production"] as const;
+export type WaaPEnvironment = (typeof WAAP_ENVIRONMENTS)[number];
+export const WAAP_ENVIRONMENT: WaaPEnvironment = WAAP_ENVIRONMENTS.find(
+  (env) => env === process.env.EXPO_PUBLIC_WAAP_ENVIRONMENT
+) ?? "production";
+// Optional Stellar-enabled preview/local deployment. The SDK validates the origin.
+export const WAAP_WALLET_ORIGIN = process.env.EXPO_PUBLIC_WAAP_WALLET_ORIGIN || undefined;
 export const PROJECT_ID = process.env.EXPO_PUBLIC_WC_PROJECT_ID;
 export const RELAYID_API_URL = process.env.EXPO_PUBLIC_RELAYID_API_URL;
 export const RELAYID_APP_API_TOKEN =
   process.env.EXPO_PUBLIC_RELAYID_APP_API_TOKEN;
+export const STELLAR_API_URL =
+  process.env.EXPO_PUBLIC_STELLAR_API_URL || "http://localhost:3000";

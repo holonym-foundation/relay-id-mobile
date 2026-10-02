@@ -16,7 +16,7 @@ export function useUserStatus() {
 
   // Display values that respect demo mode
   const displayAddress = isDemoMode ? DEMO_DATA.userAddress : account;
-  const displayIsConnected = isDemoMode ? true : !!account;
+  const displayIsConnected = isDemoMode || isConnected;
   // Only consider hasHat as true if it's explicitly true (not undefined)
   // This ensures we don't show "onboarded" state when the query hasn't completed
   const displayHasHat = isDemoMode ? DEMO_DATA.hasHat : hasHat === true;

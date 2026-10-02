@@ -9,7 +9,7 @@ import { VStack } from "@/components/ui/vstack";
 import en from "@/content/en";
 import { useDemoMode } from "@/contexts/DemoContext";
 import { useToast } from "@/hooks/useToast";
-import { INVITE_TTL_SECONDS } from "@/lib/constants";
+import { CHAIN_ID, INVITE_TTL_SECONDS } from "@/lib/constants";
 import { DeviceInfo } from "@/lib/database/types";
 import { generateDemoInviteLink } from "@/lib/demo-data";
 import { createNetworkInviteTypedData, generateNonce } from "@/lib/eip712";
@@ -24,7 +24,7 @@ interface InviteLinkSectionProps {
 }
 
 export function InviteLinkSection({ disabled }: InviteLinkSectionProps) {
-  const { isDemoMode, account, chainId, provider } = useDemoMode();
+  const { isDemoMode, account, chainId, signTypedData } = useDemoMode();
   const toast = useToast();
   const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState<string>("");
@@ -65,7 +65,7 @@ export function InviteLinkSection({ disabled }: InviteLinkSectionProps) {
     }
 
     // Type guards: we've already checked these above, but TypeScript needs help
-    if (!account || !chainId || !provider) {
+    if (!account || !chainId) {
       toast.show({
         title: "Error",
         description: "Please connect your wallet first",
@@ -80,15 +80,11 @@ export function InviteLinkSection({ disabled }: InviteLinkSectionProps) {
       const typedData = createNetworkInviteTypedData({
         inviterAddress: account,
         nonce,
-        chainId,
+        chainId: CHAIN_ID,
       });
 
-      const signature = await provider.request({
-        method: "'eth_signTypedData_v4'",
-        params: [account, JSON.stringify(typedData)],
-      }) as string;
+      const signature = await signTypedData(typedData);
 
-      
       // Get client request info for audit logging
       const deviceInfo = getAuditDeviceInfo();
 
