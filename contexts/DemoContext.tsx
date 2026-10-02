@@ -7,6 +7,7 @@ import {
   NativeEthereumProvider,
 } from "@human.tech/waap-sdk-react-native";
 import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
 import {
   createContext,
   ReactNode,
@@ -154,7 +155,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           authenticationMethods: ["social", "wallet"],
           allowedSocials: ["google", "twitter", "discord", "github", "bluesky", "telegram"],
         },
-        project: {
+        project: Constants.expoConfig?.extra?.waapProject ?? {
           appId: "org.refunite.relayid.app",
           nativeRedirect: "relayidmobile://",
           universalRedirect: "https://relayid.app",
