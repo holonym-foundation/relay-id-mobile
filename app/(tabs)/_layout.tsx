@@ -65,6 +65,18 @@ export default function TabLayout() {
           ),
         })}
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="(stellar-native)">
+        <Label>Stellar Native</Label>
+        {Platform.select({
+          ios: <Icon sf={{ default: "sparkles", selected: "sparkles" }} />,
+          android: (
+            <Icon
+              src={<VectorIcon family={MaterialIcons} name="auto-awesome" />}
+              selectedColor="blue"
+            />
+          ),
+        })}
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }

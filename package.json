@@ -1,6 +1,6 @@
 {
   "name": "relayid-mobile",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "1.0.0",
   "scripts": {
     "start": "expo start --reset-cache",
@@ -24,11 +24,13 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
+    "@stellar/stellar-base": "15.0.0",
     "@tanstack/react-query": "^5.87.4",
     "@types/react-native-vector-icons": "^6.4.18",
     "@walletconnect/react-native-compat": "^2.21.8",
     "@walletconnect/utils": "^2.21.8",
     "babel-plugin-module-resolver": "^5.0.2",
+    "buffer": "6.0.3",
     "date-fns": "^4.1.0",
     "expo": "54.0.31",
     "expo-application": "~7.0.7",

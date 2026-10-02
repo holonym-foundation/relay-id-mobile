@@ -25,9 +25,9 @@ Then disbursements are created for beneficiaries. But tokens are not transferred
 
 Beneficiaries need to redeem from the RelayId mobile app.
 
-### Signing Flow (Vote & Claim)
+### Vote Signing Flow
 
-The mobile app cannot run `@stellar/stellar-sdk` (Node.js-only), so all Stellar operations are proxied through the backend:
+The contract-wallet tab delegates Soroban preparation and submission to the backend. The separate native tab below builds classic transactions locally with `@stellar/stellar-base`.
 
 1. **Prepare** (`POST /api/wallet/execute { action: "prepare" }`) — the Next.js backend builds and simulates the Soroban contract-invocation transaction using the source account (`NEXT_PUBLIC_WALLET_SOURCE_PUBLIC_KEY`). Returns the computed `authHash` (SHA-256 of the Soroban auth preimage), the encoded auth entry, and the encoded transaction XDR.
 
@@ -40,6 +40,7 @@ The mobile app cannot run `@stellar/stellar-sdk` (Node.js-only), so all Stellar 
    - Sends the signed transaction to the external **wallet-backend** service (`WALLET_BACKEND_URL`) which wraps it in a fee-bump transaction via `/tx/create-fee-bump`.
    - Submits the fee-bump transaction directly to Horizon.
 
+Claims use a separate route: the app signs `Redeem disbursement <id> for amount <amount> XLM` with `personal_sign` and sends `{ disbursementId, signature }` to `POST /api/wallet/redeem`.
 
 ---
 
@@ -71,3 +72,50 @@ EXPO_PUBLIC_STELLAR_API_URL=http://localhost:3000
 ```
 
 `https://waap-on-stellar.up.railway.app`
+
+## Stellar Native tab
+
+The **Stellar Native** tab uses WaaP's native Ed25519 Stellar account (`G…`). It shares the existing login and WebView through `getWaaPStellarProvider({ network })`. It does not use the contract-wallet backend or move existing contract-wallet funds.
+
+### Configuration
+
+```env
+# Optional; defaults to TESTNET. PUBLIC enables mainnet balance/message signing.
+EXPO_PUBLIC_STELLAR_NATIVE_NETWORK=TESTNET
+```
+
+This network is independent of `EXPO_PUBLIC_CHAIN_ID` (Ethereum) and `EXPO_PUBLIC_WAAP_ENVIRONMENT` (wallet deployment). The pinned WaaP SDK already exports the native Stellar provider. The wallet deployment selected by the app must also support Stellar requests.
+
+### Features
+
+- Native address with copy, XLM balance and manual refresh. Horizon 404 is shown as an account awaiting first funding, not a zero balance.
+- **Get test XLM:** Friendbot creates an unfunded account on testnet. Never available on mainnet.
+- **Sign message:** asks WaaP to sign a fixed ownership-demo message using Stellar message signing. This is a demonstration, not a reusable backend authentication credential.
+- **Send test payment:** builds a one-stroop (`0.0000001` XLM) self-payment, with a fresh sequence, a 100-stroop fee and a three-minute validity window. WaaP signs the transaction envelope; the app checks that the body is unchanged and submits it to testnet Horizon.
+- Submission and confirmation are separate states. An uncertain submission retains its transaction hash, exposes **Check status**, and prevents another send while pending. The explorer link uses the selected network.
+- Logout/account changes clear the tab's data and abort network reads. Late signatures after logout or an action timeout are never broadcast. The ownership probe has a 30-second deadline; other actions have a two-minute deadline; individual HTTP reads have a 15-second deadline including the response body.
+
+`index.js` installs the Buffer polyfill before Expo Router loads screens. Raw XDR bytes are rewrapped with `Buffer.from` before base64 encoding because Hermes can return a plain `Uint8Array` from a Buffer subarray.
+
+### Current boundary
+
+The original **Stellar** tab retains disbursements and voting. Native disbursements require backend enrollment and Stellar-signature verification. The native counter/contract demo is deferred: WaaP currently rejects Soroban authorization-entry signing and unsupported contract-invocation operations. The native tab does not present a payment or signed message as a contract call.
+
+### Validation
+
+```bash
+npm test
+npx tsc --noEmit
+npx expo export --platform android
+npx expo export --platform ios
+```
+
+Device smoke test:
+
+1. Sign in normally and open **Stellar Native**; confirm the Testnet badge and native address.
+2. Get test XLM if the account is new, then refresh the balance.
+3. Sign the ownership message and inspect the returned signature.
+4. Send the test payment; review the source, destination, amount and network in WaaP. Check confirmation and open the explorer link.
+5. Sign out and sign in with another account; confirm no previous address, signature or transaction remains.
+
+Unit tests replace the native wallet bridge and HTTP responses. Bundle exports validate Metro/Hermes compatibility; they do not replace the device smoke test above.
