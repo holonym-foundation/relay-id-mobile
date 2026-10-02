@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { getWaaPStellarProvider } from '@human.tech/waap-sdk-react-native/stellar';
 
 import { toError, useDemoMode } from '@/contexts/DemoContext';
@@ -34,7 +34,7 @@ const emptyState = (owner: string | null): WalletState => ({
 
 export const STELLAR_PROOF_MESSAGE = 'RelayID: I control this native Stellar wallet.';
 
-export function useNativeStellarWallet() {
+function useStellarWalletState() {
   const { account, provider } = useDemoMode();
   const owner = account ?? null;
   const [state, setState] = useState<WalletState>(() => emptyState(owner));
@@ -177,4 +177,18 @@ export function useNativeStellarWallet() {
     ...wallet, network, connect, refresh, fund, signMessage,
     sendTestPayment, checkTransaction,
   };
+}
+
+
+const StellarWalletContext = createContext<ReturnType<typeof useStellarWalletState> | null>(null);
+
+export function StellarWalletProvider({ children }: { children: ReactNode }) {
+  const wallet = useStellarWalletState();
+  return createElement(StellarWalletContext.Provider, { value: wallet }, children);
+}
+
+export function useNativeStellarWallet() {
+  const wallet = useContext(StellarWalletContext);
+  if (!wallet) throw new Error('useNativeStellarWallet requires StellarWalletProvider');
+  return wallet;
 }

@@ -8,7 +8,8 @@ import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
 import { DemoProvider } from "@/contexts/DemoContext";
 import "@/global.css";
 import { useDeepLink } from "@/hooks/useDeepLink";
-import { WaaPModule } from "@human.tech/waap-sdk-react-native";
+import { WaaPWalletModule } from "@/components/WaaPWalletModule";
+import { StellarWalletProvider } from "@/hooks/useNativeStellarWallet";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import Toast, {
   BaseToast,
@@ -128,14 +129,16 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <GluestackUIProvider mode="light">
         <DemoProvider>
-          <QueryClientProvider client={queryClient}>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
-            </Stack>
-            <WaaPModule />
-            {/* <StatusBar style="auto" /> */}
-            <Toast config={toastConfig} />
-          </QueryClientProvider>
+          <StellarWalletProvider>
+            <QueryClientProvider client={queryClient}>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(tabs)" />
+              </Stack>
+              <WaaPWalletModule />
+              {/* <StatusBar style="auto" /> */}
+              <Toast config={toastConfig} />
+            </QueryClientProvider>
+          </StellarWalletProvider>
         </DemoProvider>
       </GluestackUIProvider>
     </SafeAreaProvider>

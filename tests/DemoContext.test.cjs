@@ -31,6 +31,7 @@ async function mount(t, options = {}) {
   let now = 0;
   let current;
   let loginCalls = 0;
+  let initCalls = 0;
   let logoutCalls = 0;
   let chainCalls = 0;
   provider.request = async ({ method }) => {
@@ -60,7 +61,7 @@ async function mount(t, options = {}) {
       if (id === '@/lib/constants') return { WAAP_ENVIRONMENT: 'production' };
       if (id === '@/lib/utils/serialize') return { marshalTypedData: (data) => data };
       if (id === '@human.tech/waap-sdk-react-native') {
-        return { initWaapNative: () => provider, createExpoNativeBrowser: () => () => {} };
+        return { initWaapNative: () => { initCalls++; return provider; }, createExpoNativeBrowser: () => () => {} };
       }
       if (id === 'expo-web-browser') return {};
       if (id === 'viem') {
@@ -82,7 +83,8 @@ async function mount(t, options = {}) {
   }
   let root;
   await act(async () => {
-    root = create(React.createElement(module.exports.DemoProvider, null, React.createElement(Probe)));
+    const tree = React.createElement(module.exports.DemoProvider, null, React.createElement(Probe));
+    root = create(options.strict ? React.createElement(React.StrictMode, null, tree) : tree);
   });
   t.after(async () => { await act(async () => root.unmount()); });
   return {
@@ -90,6 +92,7 @@ async function mount(t, options = {}) {
     timers,
     get: () => current,
     loginCalls: () => loginCalls,
+    initCalls: () => initCalls,
     logoutCalls: () => logoutCalls,
     chainCalls: () => chainCalls,
     advance: async (ms) => {
@@ -248,4 +251,12 @@ test('a late login rejection cannot disconnect an already confirmed session', as
   await act(async () => login.reject(new Error('late SDK rejection')));
   assert.equal(app.get().isConnected, true);
   assert.equal(app.logoutCalls(), 0);
+});
+
+
+test('React effect replay does not replace the live SDK event bus', async (t) => {
+  const app = await mount(t, { strict: true, accounts: [address] });
+  assert.equal(app.initCalls(), 1);
+  assert.equal(app.get().account, address);
+  assert.equal(app.get().provider, app.provider);
 });

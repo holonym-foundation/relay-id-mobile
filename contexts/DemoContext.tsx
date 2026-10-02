@@ -63,6 +63,7 @@ export function toError(error: unknown): Error {
 export function DemoProvider({ children }: { children: ReactNode }) {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [provider, setProvider] = useState<NativeEthereumProvider | null>(null);
+  const initializedProvider = useRef<NativeEthereumProvider | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const [account, setAccount] = useState<`0x${string}` | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -136,8 +137,9 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  // Initialize SDK
+  // Preserve the SDK event bus when React re-runs effects in development.
   useEffect(() => {
+    if (initializedProvider.current) return;
     try {
       const provider = initWaapNative({
         environment: WAAP_ENVIRONMENT,
@@ -161,6 +163,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         nativeBrowser: createExpoNativeBrowser(WebBrowser),
       });
 
+      initializedProvider.current = provider;
       setProvider(provider);
     } catch (error) {
       console.error("Failed to initialize SDK:", error);

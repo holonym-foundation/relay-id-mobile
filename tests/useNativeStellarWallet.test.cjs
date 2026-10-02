@@ -44,15 +44,22 @@ async function mount(t, options = {}) {
     clearTimeout: (id) => timers.delete(id),
   });
   let current;
+  let second;
   function Probe() { current = mod.useNativeStellarWallet(); return null; }
+  function SecondProbe() { second = mod.useNativeStellarWallet(); return null; }
+  const tree = (showSecond = true) => React.createElement(mod.StellarWalletProvider, null,
+    React.createElement(Probe), showSecond ? React.createElement(SecondProbe) : null);
   let root;
-  await act(async () => { root = create(React.createElement(Probe)); });
+  await act(async () => { root = create(tree()); });
   t.after(async () => { await act(async () => root.unmount()); });
   return {
-    calls, timers, get: () => current,
+    calls, timers, get: () => current, getSecond: () => second,
+    toggleSecond: async (show) => {
+      await act(async () => root.update(tree(show)));
+    },
     setAccount: async (account) => {
       shared.account = account;
-      await act(async () => root.update(React.createElement(Probe)));
+      await act(async () => root.update(tree()));
     },
   };
 }
@@ -170,4 +177,42 @@ test('logout during the silent probe never starts an interactive login', async (
   await act(async () => read.resolve(null));
   assert.equal(app.calls.some(([name]) => name === 'getAddress'), false);
   assert.equal(app.get().address, null);
+});
+
+
+test('tabs share a single connection and opening another tab does not restore again', async (t) => {
+  let restores = 0;
+  const app = await mount(t, { sdk: { restoreAccount: async () => {
+    restores++;
+    return { address: 'G-shared' };
+  } } });
+  assert.equal(restores, 1);
+  assert.equal(app.get().address, app.getSecond().address);
+  await app.toggleSecond(false);
+  await app.toggleSecond(true);
+  assert.equal(restores, 1);
+  await act(async () => { await app.get().signMessage(); });
+  assert.equal(app.getSecond().signature, 'signature');
+  await app.setAccount(null);
+  assert.equal(app.get().address, null);
+  assert.equal(app.getSecond().address, null);
+});
+
+test('a hanging restore times out for both tabs and a retry recovers both', async (t) => {
+  let first = true;
+  const hung = deferred();
+  const app = await mount(t, { sdk: { restoreAccount: () => {
+    if (first) { first = false; return hung.promise; }
+    return Promise.resolve({ address: 'G-recovered' });
+  } } });
+  await act(async () => {
+    for (const timer of app.timers.values()) if (timer.ms === 30_000) timer.fn();
+  });
+  assert.equal(app.get().busy, null);
+  assert.equal(app.getSecond().busy, null);
+  await act(async () => { await app.getSecond().connect(); });
+  assert.equal(app.get().address, 'G-recovered');
+  assert.equal(app.getSecond().address, 'G-recovered');
+  await act(async () => hung.resolve({ address: 'G-stale' }));
+  assert.equal(app.get().address, 'G-recovered');
 });

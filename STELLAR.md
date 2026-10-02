@@ -75,7 +75,7 @@ EXPO_PUBLIC_STELLAR_API_URL=http://localhost:3000
 
 ## Stellar Native tab
 
-The **Stellar Native** tab uses WaaP's native Ed25519 Stellar account (`G…`). It shares the existing login and WebView through `getWaaPStellarProvider({ network })`. It does not use the contract-wallet backend or move existing contract-wallet funds.
+The **Stellar Native** tab uses WaaP's native Ed25519 Stellar account (`G…`). It shares the existing login and WebView through `getWaaPStellarProvider({ network })`. My RelayID and Stellar Native consume a single root-level Stellar wallet state, so tab navigation does not start another connection request. The wallet WebView mounts after SDK initialization to avoid attaching to a previous event bus after a React remount. It does not use the contract-wallet backend or move existing contract-wallet funds.
 
 ### Configuration
 
