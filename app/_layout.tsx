@@ -9,6 +9,7 @@ import { DemoProvider } from "@/contexts/DemoContext";
 import "@/global.css";
 import { useDeepLink } from "@/hooks/useDeepLink";
 import { WaaPWalletModule } from "@/components/WaaPWalletModule";
+import { StellarDisbursementsProvider } from "@/hooks/useStellarDisbursements";
 import { StellarWalletProvider } from "@/hooks/useNativeStellarWallet";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import Toast, {
@@ -130,14 +131,16 @@ export default function RootLayout() {
       <GluestackUIProvider mode="light">
         <DemoProvider>
           <StellarWalletProvider>
-            <QueryClientProvider client={queryClient}>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(tabs)" />
-              </Stack>
-              <WaaPWalletModule />
-              {/* <StatusBar style="auto" /> */}
-              <Toast config={toastConfig} />
-            </QueryClientProvider>
+            <StellarDisbursementsProvider>
+              <QueryClientProvider client={queryClient}>
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(tabs)" />
+                </Stack>
+                <WaaPWalletModule />
+                {/* <StatusBar style="auto" /> */}
+                <Toast config={toastConfig} />
+              </QueryClientProvider>
+            </StellarDisbursementsProvider>
           </StellarWalletProvider>
         </DemoProvider>
       </GluestackUIProvider>

@@ -117,6 +117,7 @@ the user to retry indefinitely.
 
 - Native address with copy, XLM balance and manual refresh. Horizon 404 is shown as an account awaiting first funding, not a zero balance.
 - **Get test XLM:** Friendbot creates an unfunded account on testnet. Never available on mainnet.
+- **Disbursements:** sign in with the native Stellar account, list assigned XLM, and redeem pending payments. The RelayID web server sends treasury funds after verifying the signed message; no beneficiary transaction or fee is required.
 - **Sign message:** asks WaaP to sign `Hello Stellar!` using Stellar message signing. This is a demonstration, not a reusable backend authentication credential.
 - **Send test payment:** builds a one-stroop (`0.0000001` XLM) self-payment, with a fresh sequence, a 100-stroop fee and a three-minute validity window. WaaP signs the transaction envelope; the app checks that the body is unchanged and submits it to testnet Horizon.
 - Submission and confirmation are separate states. An uncertain submission retains its transaction hash, exposes **Check status**, and prevents another send while pending. The explorer link uses the selected network.
@@ -126,7 +127,7 @@ the user to retry indefinitely.
 
 ### Current boundary
 
-The original **Stellar** tab retains disbursements and voting. Native disbursements require backend enrollment and Stellar-signature verification. The native counter/contract demo is deferred: WaaP currently rejects Soroban authorization-entry signing and unsupported contract-invocation operations. The native tab does not present a payment or signed message as a contract call.
+The original hidden **Stellar** tab retains the separate contract-wallet disbursement and voting flows. Native disbursements use the RelayID web app API described below. The native counter/contract demo is deferred: WaaP currently rejects Soroban authorization-entry signing and unsupported contract-invocation operations. The native tab does not present a payment or signed message as a contract call.
 
 ### Validation
 
@@ -146,3 +147,17 @@ Device smoke test:
 5. Sign out and sign in with another account; confirm no previous address, signature or transaction remains.
 
 Unit tests replace the native wallet bridge and HTTP responses. Bundle exports validate Metro/Hermes compatibility; they do not replace the device smoke test above.
+
+
+### Native disbursements
+
+- Server: the origin of `EXPO_PUBLIC_RELAYID_API_URL` (a trailing `/api` is removed). Override with `EXPO_PUBLIC_DISBURSEMENTS_API_URL=https://<relayid-web-host>` only when the web app is hosted separately. HTTPS required except loopback development. `EXPO_PUBLIC_STELLAR_API_URL` belongs to the old contract wallet and is not used here.
+- Network: `EXPO_PUBLIC_STELLAR_NATIVE_NETWORK` selects the passphrase included in every signed action. It must match the web server's `NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE`.
+- Auth: sign `StartStellarSession`, then `POST /api/session/stellar`. Store only the returned cookie, account and expiry in device-only Keychain/Keystore, scoped to server origin and network. Native HTTP cookies are disabled; requests explicitly send this cookie. No application bearer token is sent.
+- Restart: validate the saved expiry/account and probe `GET /api/session/stellar` before listing. Expired/no-session responses return to the sign-in button. Logout/account changes abort active work, call `DELETE /api/session/stellar`, and clear local credentials even if the server is offline. An offline server session expires at its existing deadline.
+- List: `GET /api/disbursements/mine`; retain amount strings exactly. Show assignment/receipt dates, status and network-correct transaction links. Refresh manually, on foregrounding, and every 30 seconds while processing or awaiting review.
+- Redeem: freshly sign `RedeemDisbursement` for the beneficiary and UUID, then `POST /api/disbursements/redeem` with a 75-second HTTP deadline. All actions use a secure 128-bit nonce, decimal Unix seconds and the exact newline-delimited text from the server contract. WaaP applies SEP-53; the client verifies its returned signature locally before submitting.
+- Concurrency: disbursement signing shares the existing wallet approval lock. Only pending rows from a successful list read can be redeemed. Every redeem response (including errors/timeouts) triggers a list refresh. A failed refresh disables redemption until a successful read. Unknown payment outcomes never trigger automatic POST retries. Only `expired_signature`/`replay` can retry once, using a new nonce and signature, and only after a fresh pending status for redemption.
+- Tests: both published offline SEP-53 vectors, session restoration/storage isolation, logout races, expired sessions, duplicate approval attempts, all documented API errors and ambiguous payment responses.
+
+Testnet acceptance: add the app's **G-address** as a beneficiary at the RelayID web app `/beneficiaries`, assign XLM, tap **Sign in to see disbursements**, then **Redeem** and approve the corresponding message in WaaP. Confirm **Received** and open the transaction. A first disbursement to an unfunded account must be at least 1 XLM. Restart the app to verify session restoration, and sign out to verify credential removal.

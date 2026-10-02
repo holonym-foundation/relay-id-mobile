@@ -216,3 +216,37 @@ test('a hanging restore times out for both tabs and a retry recovers both', asyn
   await act(async () => hung.resolve({ address: 'G-stale' }));
   assert.equal(app.get().address, 'G-recovered');
 });
+
+test('disbursement signing shares the wallet lock and passes raw text, account and network', async (t) => {
+  const signing = deferred();
+  let text;
+  const app = await mount(t, { sdk: { signMessage: async (value, args) => {
+    text = value;
+    assert.equal(args.address, 'G-0xfirst');
+    assert.equal(args.networkPassphrase, 'testnet-passphrase');
+    return signing.promise;
+  } } });
+  const signal = new AbortController();
+  let promise;
+  await act(async () => { promise = app.get().signActionMessage('RelayID\nTest action', signal.signal); });
+  await act(async () => { await assert.rejects(app.get().signActionMessage('duplicate', signal.signal), /busy/); });
+  assert.equal(app.get().busy, 'disbursement');
+  assert.equal(text, 'RelayID\nTest action');
+  await act(async () => { signing.resolve({ signedMessage: 'signature', signerAddress: 'G-0xfirst' }); await promise; });
+  assert.equal(app.get().busy, null);
+});
+
+test('cancelling disbursement approval releases the lock and rejects a late signature', async (t) => {
+  const signing = deferred();
+  const app = await mount(t, { sdk: { signMessage: () => signing.promise } });
+  const controller = new AbortController();
+  let failed;
+  await act(async () => {
+    failed = assert.rejects(app.get().signActionMessage('action', controller.signal));
+    controller.abort();
+    await failed;
+  });
+  assert.equal(app.get().busy, null);
+  await act(async () => signing.resolve({ signedMessage: 'late' }));
+  assert.equal(app.get().signature, null);
+});

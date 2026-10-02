@@ -15,7 +15,7 @@ import {
   type StellarTransactionStatus,
 } from '@/lib/stellar-native';
 
-type Action = 'restore' | 'connect' | 'refresh' | 'fund' | 'message' | 'payment' | 'confirm';
+type Action = 'disbursement' | 'restore' | 'connect' | 'refresh' | 'fund' | 'message' | 'payment' | 'confirm';
 type Transaction = { hash: string; status: StellarTransactionStatus };
 type WalletState = {
   owner: string | null;
@@ -42,18 +42,25 @@ function useStellarWalletState() {
   const active = useRef<AbortController | null>(null);
   const network = STELLAR_NATIVE_NETWORK;
 
-  const run = useCallback(async (
+  const run = useCallback(async <T,>(
     action: Action,
     operation: (
       signal: AbortSignal,
       update: (patch: Partial<WalletState>) => void,
       isCurrent: () => boolean,
-    ) => Promise<void>,
-  ) => {
-    if (!owner || !provider || active.current) return;
+    ) => Promise<T>,
+    propagateError = false,
+    externalSignal?: AbortSignal,
+  ): Promise<T | undefined> => {
+    if (!owner || !provider || active.current || externalSignal?.aborted) {
+      if (propagateError) throw new Error('The wallet is unavailable or busy. Please try again.');
+      return;
+    }
     const currentGeneration = generation.current;
     const controller = new AbortController();
     active.current = controller;
+    const abortExternal = () => controller.abort();
+    externalSignal?.addEventListener('abort', abortExternal, { once: true });
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
@@ -71,8 +78,9 @@ function useStellarWalletState() {
     };
     update({ busy: action, error: null });
     try {
-      await Promise.race([operation(controller.signal, update, isCurrent), aborted]);
+      return await Promise.race([operation(controller.signal, update, isCurrent), aborted]);
     } catch (error) {
+      if (propagateError) throw error;
       if (timedOut && generation.current === currentGeneration) {
         setState((previous) => ({ ...previous, error: toError(error).message }));
       } else {
@@ -83,6 +91,7 @@ function useStellarWalletState() {
       }
     } finally {
       clearTimeout(timer);
+      externalSignal?.removeEventListener('abort', abortExternal);
       controller.signal.removeEventListener('abort', onAbort);
       if (generation.current === currentGeneration) {
         setState((previous) => ({ ...previous, busy: null }));
@@ -140,6 +149,19 @@ function useStellarWalletState() {
     update({ signature: result.signedMessage });
   });
 
+  const signActionMessage = async (text: string, signal: AbortSignal) => {
+    const result = await run('disbursement', async (_signal, _update, isCurrent) => {
+      if (!address || !isCurrent()) throw new Error('Connect your Stellar wallet first.');
+      const signed = await getWaaPStellarProvider({ network }).signMessage(text, {
+        address, networkPassphrase: networkPassphrase(network),
+      });
+      if (!isCurrent()) throw new Error('This wallet session has ended.');
+      return signed;
+    }, true, signal);
+    if (!result) throw new Error('The wallet did not return a signature.');
+    return result;
+  };
+
   const sendTestPayment = () => run('payment', async (signal, update, isCurrent) => {
     if (!address || wallet.transaction?.status === 'pending') return;
     const xdr = await buildStellarTestPayment(address, network, signal);
@@ -175,7 +197,7 @@ function useStellarWalletState() {
 
   return {
     ...wallet, network, connect, refresh, fund, signMessage,
-    sendTestPayment, checkTransaction,
+    sendTestPayment, checkTransaction, signActionMessage,
   };
 }
 

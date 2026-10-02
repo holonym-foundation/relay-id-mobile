@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
+import { StellarDisbursements } from '@/components/StellarDisbursements';
 import { AppHeader } from '@/components/AppHeader';
 import { NotConnectedState } from '@/components/NotConnectedState';
 import { Box } from '@/components/ui/box';
@@ -122,6 +123,8 @@ export default function NativeStellarWalletScreen() {
                   </Button>
                 )}
               </VStack>
+
+              <StellarDisbursements />
 
               {testnet && (
                 <VStack className="gap-3">
