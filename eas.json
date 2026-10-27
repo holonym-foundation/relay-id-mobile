@@ -24,7 +24,8 @@
       "env": {
         "RELAYID_APP_VARIANT": "staging",
         "EXPO_PUBLIC_WAAP_ENVIRONMENT": "staging",
-        "EXPO_PUBLIC_STELLAR_NATIVE_NETWORK": "TESTNET"
+        "EXPO_PUBLIC_STELLAR_NATIVE_NETWORK": "TESTNET",
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a,armeabi-v7a"
       }
     }
   },
