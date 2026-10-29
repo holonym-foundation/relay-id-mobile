@@ -24,6 +24,8 @@ test('staging APK has its own identity, wallet callback and EAS project with no 
     assert.equal(config.android.package, 'org.refunite.relayid.app.staging');
     assert.equal(config.extra.waapProject.appId, config.android.package);
     assert.equal(config.extra.waapProject.nativeRedirect, `${config.scheme}://`);
+    // WaaP rejects signing from an origin that is not HTTPS; universalRedirect sets it.
+    assert.match(config.extra.waapProject.universalRedirect, /^https:\/\//);
     assert.notEqual(config.scheme, base.scheme);
     assert.notEqual(config.extra.eas.projectId, base.extra.eas.projectId);
     assert.deepEqual(config.android.intentFilters, []);

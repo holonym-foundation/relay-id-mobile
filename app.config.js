@@ -15,7 +15,13 @@ module.exports = ({ config }) => {
     extra: {
       ...config.extra,
       eas: { projectId: 'ae63e081-9532-4065-92d8-99310cc0213c' },
-      waapProject: { appId, nativeRedirect: `${scheme}://` },
+      // universalRedirect is also the origin the WaaP bridge claims; without an
+      // HTTPS one the wallet rejects every signing request.
+      waapProject: {
+        appId,
+        nativeRedirect: `${scheme}://`,
+        universalRedirect: 'https://refunite-relayid.vercel.app',
+      },
     },
   };
 };
