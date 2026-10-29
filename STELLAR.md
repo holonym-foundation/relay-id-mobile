@@ -162,3 +162,11 @@ Unit tests replace the native wallet bridge and HTTP responses. Bundle exports v
 Testnet acceptance: add the app's **G-address** as a beneficiary at the RelayID web app `/beneficiaries`, assign XLM, tap **Sign to see disbursements**, then **Redeem** and approve the corresponding message in WaaP. Confirm **Received** and open the transaction. A first disbursement to an unfunded account must be at least 1 XLM. Restart the app to verify session restoration, and sign out to verify credential removal.
 
 The visible bottom tabs are ordered **My RelayID**, **Invite**, **Stellar**, **Help**. The signed session message still uses the exact server-contract statement (`Sign in to RelayID to see your disbursements.`); button wording does not change the signed payload.
+
+### Standalone staging APK
+
+`eas build --platform android --profile staging` builds an installable APK named **RelayID Staging**, using `@holosoe/relayid-mobile-staging` (`ae63e081-9532-4065-92d8-99310cc0213c`). The profile selects the `preview` EAS environment, pins WaaP staging/Stellar testnet, and increments the Android version code automatically.
+
+`app.config.js` applies this identity only when `RELAYID_APP_VARIANT=staging`: package `org.refunite.relayid.app.staging`, scheme `relayidmobilestaging`. WaaP reads its app ID and native callback from the resulting Expo config. Production app links are omitted so staging can coexist with production without claiming its links. The default production project and app identity remain in `app.json`.
+
+Project-scoped EAS commands outside a build must also set `RELAYID_APP_VARIANT=staging`, for example `RELAYID_APP_VARIANT=staging eas project:info`. The approved test settings from `.env.local` are uploaded to this project's `preview` environment. All `EXPO_PUBLIC_*` values, including the app API token, are embedded in the APK; use test credentials suitable for distribution. The Android signing key is managed by EAS for this separate app.

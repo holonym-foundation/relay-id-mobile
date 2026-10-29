@@ -1,7 +1,7 @@
 import en from "@/content/en";
 import { Alert, Linking } from "react-native";
 
-export type WhatsAppShareType = "requestOnboarding" | "inviteLink";
+export type WhatsAppShareType = "requestOnboarding" | "inviteLink" | "stellarAddress";
 
 export interface WhatsAppShareOptions {
   type: WhatsAppShareType;
@@ -46,6 +46,8 @@ export const shareViaWhatsApp = async (
 
     // Create message with deeplink and Play Store link
     message = `${en.share.requestOnboardingMessage}${address}\n\nAdd me via RelayID app:\n${deeplink}\n\nDownload RelayID:\n${GOOGLE_PLAY_STORE_URL}`;
+  } else if (type === "stellarAddress" && address) {
+    message = `${en.share.stellarAddressMessage}${address}`;
   } else if (type === "inviteLink" && inviteLink) {
     message = `${en.share.inviteLinkMessage}${inviteLink}`;
   } else {

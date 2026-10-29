@@ -241,3 +241,9 @@ test('logout clears local credentials even when server is unreachable', async ()
   assert.equal(app.stored(), null);
   assert.equal(app.controller.getSnapshot().authenticated, false);
 });
+
+test('shows the wallet\'s own reason when it rejects with a plain object', () => {
+  assert.equal(api.disbursementErrorMessage({ code: 4001, message: 'User rejected the request.' }), 'User rejected the request.');
+  assert.equal(api.disbursementErrorMessage({ code: 4001 }), 'Unable to load disbursements. Please try again.');
+  assert.equal(api.disbursementErrorMessage(new Error('Connect your Stellar wallet first.')), 'Connect your Stellar wallet first.');
+});

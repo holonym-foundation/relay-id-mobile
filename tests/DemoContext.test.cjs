@@ -32,6 +32,7 @@ async function mount(t, options = {}) {
   let current;
   let loginCalls = 0;
   let initCalls = 0;
+  let initConfig;
   let logoutCalls = 0;
   let chainCalls = 0;
   provider.request = async ({ method }) => {
@@ -61,9 +62,10 @@ async function mount(t, options = {}) {
       if (id === '@/lib/constants') return { WAAP_ENVIRONMENT: 'production' };
       if (id === '@/lib/utils/serialize') return { marshalTypedData: (data) => data };
       if (id === '@human.tech/waap-sdk-react-native') {
-        return { initWaapNative: () => { initCalls++; return provider; }, createExpoNativeBrowser: () => () => {} };
+        return { initWaapNative: (config) => { initCalls++; initConfig = config; return provider; }, createExpoNativeBrowser: () => () => {} };
       }
       if (id === 'expo-web-browser') return {};
+      if (id === 'expo-constants') return { default: { expoConfig: { extra: { waapProject: options.waapProject } } } };
       if (id === 'viem') {
         return { createPublicClient: () => ({}), http: () => {}, numberToHex: (n) => `0x${n.toString(16)}` };
       }
@@ -93,6 +95,7 @@ async function mount(t, options = {}) {
     get: () => current,
     loginCalls: () => loginCalls,
     initCalls: () => initCalls,
+    initConfig: () => initConfig,
     logoutCalls: () => logoutCalls,
     chainCalls: () => chainCalls,
     advance: async (ms) => {
@@ -259,4 +262,18 @@ test('React effect replay does not replace the live SDK event bus', async (t) =>
   assert.equal(app.initCalls(), 1);
   assert.equal(app.get().account, address);
   assert.equal(app.get().provider, app.provider);
+});
+
+
+test('staging wallet login returns to its own app instead of the production app', async (t) => {
+  const waapProject = { appId: 'org.refunite.relayid.app.staging', nativeRedirect: 'relayidmobilestaging://' };
+  const app = await mount(t, { waapProject });
+  assert.equal(app.initConfig().project, waapProject);
+});
+
+test('default wallet login preserves the production identity and redirects', async (t) => {
+  const app = await mount(t);
+  assert.equal(app.initConfig().project.appId, 'org.refunite.relayid.app');
+  assert.equal(app.initConfig().project.nativeRedirect, 'relayidmobile://');
+  assert.equal(app.initConfig().project.universalRedirect, 'https://relayid.app');
 });

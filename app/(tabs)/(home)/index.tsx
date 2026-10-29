@@ -2,6 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import React from "react";
 import { Modal, Pressable, ScrollView } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -18,7 +19,6 @@ import { Text } from "@/components/ui/text";
 import { VStack } from "@/components/ui/vstack";
 
 import { AppHeader } from "@/components/AppHeader";
-import { QRCodeModal } from "@/components/QRCodeModal";
 import { UserStatusGuard } from "@/components/UserStatusGuard";
 import en from "@/content/en";
 import { useLogout } from "@/hooks/useLogout";
@@ -34,7 +34,8 @@ export default function Index() {
   const scrollPaddingBottom = insets.bottom + 64;
   const [showOnboardingHelp, setShowOnboardingHelp] = React.useState(false);
   const [showShareModal, setShowShareModal] = React.useState(false);
-  const [showQRCode, setShowQRCode] = React.useState(false);
+  // Payments go to the Stellar account; Leader onboarding (Hats) needs the 0x RelayID.
+  const [shareMode, setShareMode] = React.useState<"payment" | "leader">("payment");
   const { handleLogout } = useLogout();
   const stellarWallet = useNativeStellarWallet();
 
@@ -69,10 +70,18 @@ export default function Index() {
     }
   };
 
+  const shareAddress = shareMode === "payment" ? stellarWallet.address : displayAddress;
+  // The leader QR keeps the structured payload the onboarding scanners read.
+  const shareQrValue = shareMode === "payment"
+    ? stellarWallet.address
+    : displayAddress && JSON.stringify({ address: displayAddress, chainId: displayChainId || 0, type: "relayId" });
+
   const handleWhatsAppShare = async () => {
     if (isDemoMode) {
       // Demo mode: Show fake share preview
-      const message = `${en.share.requestOnboardingMessage}${displayAddress}`;
+      const message = shareMode === "payment"
+        ? `${en.share.stellarAddressMessage}${stellarWallet.address}`
+        : `${en.share.requestOnboardingMessage}${displayAddress}`;
       toast.show({
         title: "Demo: WhatsApp Share",
         description: `This would share via WhatsApp: ${message}. No actual message sent in demo mode.`,
@@ -82,11 +91,10 @@ export default function Index() {
       return;
     }
 
-    if (displayAddress) {
-      await shareViaWhatsApp({
-        type: "requestOnboarding",
-        address: displayAddress,
-      });
+    if (shareMode === "payment" && stellarWallet.address) {
+      await shareViaWhatsApp({ type: "stellarAddress", address: stellarWallet.address });
+    } else if (shareMode === "leader" && displayAddress) {
+      await shareViaWhatsApp({ type: "requestOnboarding", address: displayAddress });
     }
   };
 
@@ -267,7 +275,10 @@ export default function Index() {
                     <Button
                       size="xl"
                       className="w-full bg-blue-600"
-                      onPress={() => setShowShareModal(true)}
+                      onPress={() => {
+                        setShareMode("payment");
+                        setShowShareModal(true);
+                      }}
                     >
                       <HStack className="items-center justify-center gap-4">
                         <Feather name="share-2" size={24} color="#ffffff" />
@@ -433,7 +444,7 @@ export default function Index() {
               {/* Modal Header */}
               <HStack className="items-center justify-between px-6 py-4 border-b border-gray-200">
                 <Text className="text-lg font-semibold text-gray-900">
-                  Share Your RelayID
+                  {en.share.shareSheetTitle}
                 </Text>
                 <Pressable onPress={() => setShowShareModal(false)}>
                   <MaterialIcons name="close" size={24} color="#374151" />
@@ -443,23 +454,61 @@ export default function Index() {
               {/* Modal Content */}
               <ScrollView className="flex-1 px-6 py-6">
                 <VStack className="gap-6">
+                  {/* Purpose selector */}
+                  <HStack className="bg-gray-100 rounded-lg p-1">
+                    {([
+                      ["payment", en.share.getPaidTab],
+                      ["leader", en.share.becomeLeaderTab],
+                    ] as const).map(([mode, label]) => (
+                      <Pressable
+                        key={mode}
+                        onPress={() => setShareMode(mode)}
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected: shareMode === mode }}
+                        className={`flex-1 py-3 rounded-md ${shareMode === mode ? "bg-white" : ""}`}
+                      >
+                        <Text className={`text-center font-semibold ${shareMode === mode ? "text-blue-600" : "text-gray-500"}`}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </HStack>
+
                   <Text className="text-base text-gray-600 text-center">
-                    Share your RelayID with others so they can add you to their
-                    network
+                    {shareMode === "payment"
+                      ? en.share.stellarAddressDescription
+                      : en.share.shareWithMembersDescription}
                   </Text>
 
-                  {/* RelayID Display */}
+                  {shareQrValue ? (
+                    <Box className="self-center bg-white p-4 rounded-lg border border-gray-200">
+                      <QRCode
+                        value={shareQrValue}
+                        size={200}
+                        color="#000000"
+                        backgroundColor="#ffffff"
+                        quietZone={10}
+                      />
+                    </Box>
+                  ) : null}
+
                   <Box className="bg-gray-50 px-4 py-4 rounded-lg border border-gray-200">
                     <VStack className="gap-2">
                       <Text className="text-sm font-medium text-gray-700">
-                        Your RelayID
+                        {shareMode === "payment" ? "Your Stellar address" : "Your RelayID"}
                       </Text>
                       <HStack className="items-center justify-between">
                         <Text className="text-sm font-mono text-gray-800 flex-1">
-                          {displayAddress}
+                          {shareAddress ||
+                            (shareMode === "payment" && stellarWallet.busy
+                              ? "Loading Stellar address…"
+                              : shareMode === "payment" ? "Stellar address not available" : "RelayID not available")}
                         </Text>
                         <Pressable
-                          onPress={handleCopyRelayID}
+                          onPress={shareMode === "payment" ? handleCopyStellarAddress : handleCopyRelayID}
+                          disabled={!shareAddress}
+                          accessibilityLabel={shareMode === "payment" ? "Copy Stellar address" : "Copy RelayID"}
+                          accessibilityState={{ disabled: !shareAddress }}
                           className="p-2 rounded-lg bg-white border border-gray-200"
                         >
                           <Feather name="copy" size={16} color="#6b7280" />
@@ -468,47 +517,18 @@ export default function Index() {
                     </VStack>
                   </Box>
 
-                  {/* Share Options */}
-                  <VStack className="gap-4">
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      className="w-full border-2 border-gray-300"
-                      onPress={handleWhatsAppShare}
-                    >
-                      <HStack className="items-center justify-center gap-4">
-                        <FontAwesome5
-                          name="whatsapp"
-                          size={22}
-                          color="#25D366"
-                        />
-                        <Text className="text-gray-700 font-bold">
-                          Share via WhatsApp
-                        </Text>
-                      </HStack>
-                    </Button>
-
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      className="w-full border-2 border-gray-300"
-                      onPress={() => {
-                        setShowShareModal(false);
-                        setShowQRCode(true);
-                      }}
-                    >
-                      <HStack className="items-center justify-center gap-4">
-                        <MaterialIcons
-                          name="qr-code"
-                          size={22}
-                          color="#374151"
-                        />
-                        <Text className="text-gray-700 font-bold text-base">
-                          Show QR Code
-                        </Text>
-                      </HStack>
-                    </Button>
-                  </VStack>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full border-2 border-gray-300"
+                    isDisabled={!shareAddress}
+                    onPress={handleWhatsAppShare}
+                  >
+                    <HStack className="items-center justify-center gap-4">
+                      <FontAwesome5 name="whatsapp" size={22} color="#25D366" />
+                      <Text className="text-gray-700 font-bold">Share via WhatsApp</Text>
+                    </HStack>
+                  </Button>
                 </VStack>
               </ScrollView>
 
@@ -526,14 +546,6 @@ export default function Index() {
             </VStack>
           </SafeAreaView>
         </Modal>
-
-        {/* QR Code Modal */}
-        <QRCodeModal
-          visible={(displayAddress && showQRCode) || false}
-          onClose={() => setShowQRCode(false)}
-          address={displayAddress || ""}
-          chainId={displayChainId || 0}
-        />
       </SafeAreaView>
     </UserStatusGuard>
   );

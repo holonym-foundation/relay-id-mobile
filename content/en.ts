@@ -78,7 +78,7 @@ const en = {
     joinCommunitySteps: "Join the community in 3 simple steps",
     shareRelayIDTitle: "Share your RelayID",
     shareRelayIDDescription:
-      "Send your RelayID to someone who's already a network leader. They can add you to the network.",
+      "Tap Share My RelayID, choose Become a leader, and send your RelayID to someone who's already a network leader. They can add you to the network.",
     waitForAddTitle: "Wait for them to add you",
     waitForAddDescription:
       "The leader will use your RelayID to connect you to the RelayID network.",
@@ -94,6 +94,12 @@ const en = {
       "Share your RelayID with another leader to join the network. They can scan your QR code or use WhatsApp to get your RelayID.",
     requestOnboardingMessage:
       "Hi! I'd like to join the RelayID Network. My RelayID is: ",
+    shareSheetTitle: "Share your address",
+    getPaidTab: "Get paid",
+    becomeLeaderTab: "Become a leader",
+    stellarAddressDescription:
+      "Share your Stellar address with your community leader so they can send you XLM.",
+    stellarAddressMessage: "Hi! My Stellar address for RelayID payments is: ",
     inviteLinkMessage:
       "Join me on the RelayID Network! RelayID is a decentralized identity system that gives refugees control over their personal data while unlocking access to critical resources like aid, jobs, and financial services. Use this invite link to join: ",
   },

@@ -66,7 +66,12 @@ export class DisbursementError extends Error {
 }
 
 export function disbursementErrorMessage(error: unknown) {
-  if (!(error instanceof DisbursementError)) return error instanceof Error ? error.message : 'Unable to load disbursements. Please try again.';
+  if (!(error instanceof DisbursementError)) {
+    if (error instanceof Error) return error.message;
+    // The wallet rejects with a plain { code, message } object rather than an Error.
+    const message = (error as { message?: unknown } | null)?.message;
+    return typeof message === 'string' && message ? message : 'Unable to load disbursements. Please try again.';
+  }
   const messages: Record<string, string> = {
     invalid_request: 'We could not prepare this request. Please update the app and try again.',
     invalid_signature: 'The signature could not be verified. Check that the app and RelayID use the same Stellar network.',
