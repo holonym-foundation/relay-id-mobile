@@ -12,7 +12,13 @@ import { useDemoMode } from "@/contexts/DemoContext";
 import { useToast } from "@/hooks/useToast";
 import { CHAIN_ID } from "@/lib/constants";
 import { marshalTypedData } from "@/lib/utils/serialize";
+import { StrKey } from "@stellar/stellar-base";
 import { isAddress } from "viem";
+
+// A Stellar account belongs on the beneficiaries page, not in the Hats tree.
+const STELLAR_ADDRESS_MESSAGE =
+  "This is a Stellar address, used for payments. Register it as a beneficiary on the RelayID web app. To add a leader, ask for their RelayID (0x...).";
+const isStellarAddress = (value: string) => StrKey.isValidEd25519PublicKey(value);
 
 interface DirectOnboardingSectionProps {
   initialAddress?: string;
@@ -39,8 +45,12 @@ export function DirectOnboardingSection({
   };
 
   const handleQRScanResult = (scannedData: string) => {
-    setRelayIdInput(scannedData);
     setShowQRScanner(false);
+    if (isStellarAddress(scannedData.trim())) {
+      toast.show({ title: "Not a RelayID", description: STELLAR_ADDRESS_MESSAGE, action: "error" });
+      return;
+    }
+    setRelayIdInput(scannedData);
   };
 
   const handleAddMember = async () => {
@@ -54,6 +64,11 @@ export function DirectOnboardingSection({
     }
 
     const recipient = relayIdInput.trim();
+
+    if (isStellarAddress(recipient)) {
+      toast.show({ title: "Not a RelayID", description: STELLAR_ADDRESS_MESSAGE, action: "error" });
+      return;
+    }
 
     // Validate recipient address format
     if (!isAddress(recipient)) {
